@@ -42,6 +42,15 @@ def calculate_chart(date: str, time: str, lat: float, lon: float):
     houses, ascmc = swe.houses(jd, lat, lon)
     asc_sign = zodiac_sign(ascmc[0])
 
+import os
+import uvicorn
+
+# ... il tuo app = FastAPI() deve già esistere sopra ...
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
+
     return {
         "planets": result,
         "ascendant": asc_sign
