@@ -1,40 +1,48 @@
+
 from fastapi import FastAPI
-from datetime import datetime
 import swisseph as swe
+from datetime import datetime
 
 app = FastAPI()
 
-@app.get("/")
-def health():
-    return {"status": "ok"}
+swe.set_ephe_path(".")
 
-@app.post("/birth-chart")
-def birth_chart(data: dict):
-    year = data["year"]
-    month = data["month"]
-    day = data["day"]
-    hour = data["hour"] + data.get("minute", 0) / 60
-    lat = data["lat"]
-    lon = data["lon"]
+SIGNS = [
+    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+]
 
-    swe.set_ephe_path(".")
+def zodiac_sign(longitude):
+    return SIGNS[int(longitude // 30)]
 
-    jd = swe.julday(year, month, day, hour)
+@app.get("/chart")
+def calculate_chart(date: str, time: str, lat: float, lon: float):
+    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    jd = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute/60)
 
     planets = {
-        "sun": swe.calc_ut(jd, swe.SUN)[0][0],
-        "moon": swe.calc_ut(jd, swe.MOON)[0][0],
-        "mercury": swe.calc_ut(jd, swe.MERCURY)[0][0],
-        "venus": swe.calc_ut(jd, swe.VENUS)[0][0],
-        "mars": swe.calc_ut(jd, swe.MARS)[0][0],
-        "jupiter": swe.calc_ut(jd, swe.JUPITER)[0][0],
-        "saturn": swe.calc_ut(jd, swe.SATURN)[0][0],
+        "sun": swe.SUN,
+        "moon": swe.MOON,
+        "mercury": swe.MERCURY,
+        "venus": swe.VENUS,
+        "mars": swe.MARS,
+        "jupiter": swe.JUPITER,
+        "saturn": swe.SATURN
     }
 
-    houses = swe.houses(jd, lat, lon)[0]
-    ascendant = houses[0]
+    result = {}
+
+    for name, planet in planets.items():
+        lon, _, _ = swe.calc_ut(jd, planet)
+        result[name] = {
+            "longitude": lon,
+            "sign": zodiac_sign(lon)
+        }
+
+    houses, ascmc = swe.houses(jd, lat, lon)
+    asc_sign = zodiac_sign(ascmc[0])
 
     return {
-        "planets": planets,
-        "ascendant": ascendant
+        "planets": result,
+        "ascendant": asc_sign
     }
