@@ -183,18 +183,7 @@ REFLECTION
             "Ask: ‘What’s one step I can take today that makes tomorrow easier?’"
         )
 
-    else:
-        # fallback “general”
-        text = format_reading(
-            "YOUR CORE BLUEPRINT — Snapshot",
-            f"Sun in {sun} shapes your identity and direction. Moon in {moon} shapes your emotional needs. Ascendant in {asc} shapes how you start things and how the world experiences you.",
-            "You have a mix of depth and drive. When you focus, you can build something real — not just ideas.",
-            "Your challenge is consistency when emotions fluctuate. You don’t need more intensity, you need a clear rhythm.",
-            "Pick one small action you can repeat daily. Keep it simple, keep it real, keep it consistent.",
-            "Ask: ‘What does my best self do even when motivation is low?’"
-        )
-
-    elif topic == "strengths":
+     elif topic == "strengths":
     text = format_reading(
         "STRENGTHS — What You Do Best",
         f"Your Sun in {sun} gives you a core drive toward competence and purpose. Your Moon in {moon} shows how you recharge emotionally. Your Ascendant in {asc} shows how you take initiative and how others experience your presence.",
@@ -224,6 +213,18 @@ elif topic == "communication":
         "Ask: ‘What’s the simplest truthful version of what I’m trying to say?’"
     )
 
+    else:
+        # fallback “general”
+        text = format_reading(
+            "YOUR CORE BLUEPRINT — Snapshot",
+            f"Sun in {sun} shapes your identity and direction. Moon in {moon} shapes your emotional needs. Ascendant in {asc} shapes how you start things and how the world experiences you.",
+            "You have a mix of depth and drive. When you focus, you can build something real — not just ideas.",
+            "Your challenge is consistency when emotions fluctuate. You don’t need more intensity, you need a clear rhythm.",
+            "Pick one small action you can repeat daily. Keep it simple, keep it real, keep it consistent.",
+            "Ask: ‘What does my best self do even when motivation is low?’"
+        )
+
+   
     return {
         "topic": topic or "general",
         "text": text.strip()
