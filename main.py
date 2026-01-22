@@ -93,35 +93,37 @@ class ReadingRequest(BaseModel):
 
 @app.post("/readings")
 def generate_reading(data: ReadingRequest):
-   birth_profile = data.birth_profile
-chart = birth_profile["chart"]
+    birth_profile = data.birth_profile
+    chart = birth_profile["chart"]
 
-sun = chart["planets"]["sun"]["sign"]
-moon = chart["planets"]["moon"]["sign"]
-asc = chart["ascendant"]["sign"]
-
+    sun = chart["planets"]["sun"]["sign"]
+    moon = chart["planets"]["moon"]["sign"]
+    asc = chart["ascendant"]["sign"]
 
     if data.topic == "love":
-        text = f"""
-You love deeply and selectively.
-With Sun in {sun} and Moon in {moon}, you seek emotional loyalty
-but also intensity. Relationships transform you.
-Your Ascendant in {asc} makes others perceive you as magnetic.
-"""
+        text = (
+            f"You love deeply and selectively. "
+            f"With Sun in {sun} and Moon in {moon}, you seek emotional loyalty "
+            f"but also intensity. Relationships transform you. "
+            f"Your Ascendant in {asc} makes others perceive you as magnetic."
+        )
+
     elif data.topic == "career":
-        text = f"""
-Your vocation grows through discipline and intuition.
-Sun in {sun} gives ambition, Moon in {moon} creativity.
-Your Ascendant in {asc} pushes you to lead in your own way.
-"""
+        text = (
+            f"Your vocation grows through discipline and intuition. "
+            f"Sun in {sun} gives ambition, Moon in {moon} creativity. "
+            f"Your Ascendant in {asc} pushes you to lead in your own way."
+        )
+
     else:
-        text = f"""
-Your chart shows a complex and evolving inner world.
-Sun in {sun}, Moon in {moon}, Ascendant in {asc}.
-This is a foundation for growth.
-"""
+        text = (
+            f"Your chart shows a complex and evolving inner world. "
+            f"Sun in {sun}, Moon in {moon}, Ascendant in {asc}. "
+            f"This is a foundation for growth."
+        )
 
     return {
         "topic": data.topic,
-        "text": text.strip()
+        "text": text
     }
+
