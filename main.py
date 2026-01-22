@@ -3,6 +3,15 @@ from datetime import datetime
 import swisseph as swe
 
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Swiss Ephemeris: usa i file effemeridi locali (repo)
 swe.set_ephe_path(".")
