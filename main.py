@@ -1,31 +1,21 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from pydantic import BaseModel
-from typing import Any, Dict
+from typing import Dict, Any
 import swisseph as swe
 
+# ------------------
+# APP SETUP
+# ------------------
 app = FastAPI()
 
-# --- LOG (utile per debug su Railway) ---
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    origin = request.headers.get("origin")
-    print(f"[REQ] {request.method} {request.url.path} origin={origin}")
-    response = await call_next(request)
-    print(f"[RES] {request.method} {request.url.path} -> {response.status_code}")
-    return response
-
-# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Swiss Ephemeris ---
 swe.set_ephe_path(".")
 
 SIGNS = [
@@ -37,29 +27,30 @@ def zodiac_sign(longitude: float) -> str:
     longitude = longitude % 360.0
     return SIGNS[int(longitude // 30)]
 
-
+# ------------------
+# ROOT
+# ------------------
 @app.get("/")
 def root():
     return {
-        "ok": True,
-        "try": "/docs",
+        "status": "ok",
+        "docs": "/docs",
         "example": "/chart?date=1998-01-01&time=12:30&lat=41.9&lon=12.5"
     }
 
-
+# ------------------
+# CHART ENDPOINT
+# ------------------
 @app.get("/chart")
 def calculate_chart(date: str, time: str, lat: float, lon: float):
-    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-        raise HTTPException(status_code=422, detail="lat/lon out of range")
-
     try:
         dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
     except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date/time format. Use YYYY-MM-DD and HH:MM")
+        raise HTTPException(422, "Invalid date/time format")
 
-    jd = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0)
+    jd = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60)
 
-    planets = {
+    planet_map = {
         "sun": swe.SUN,
         "moon": swe.MOON,
         "mercury": swe.MERCURY,
@@ -67,126 +58,140 @@ def calculate_chart(date: str, time: str, lat: float, lon: float):
         "mars": swe.MARS,
         "jupiter": swe.JUPITER,
         "saturn": swe.SATURN,
+        "uranus": swe.URANUS,
+        "neptune": swe.NEPTUNE,
+        "pluto": swe.PLUTO,
     }
 
-    result: Dict[str, Any] = {}
+    planets = {}
+    for name, code in planet_map.items():
+        pos, _ = swe.calc_ut(jd, code)
+        planets[name] = {
+            "longitude": pos[0],
+            "sign": zodiac_sign(pos[0]),
+        }
 
-    try:
-        for name, planet in planets.items():
-            xx, _ = swe.calc_ut(jd, planet)
-            lon_p = float(xx[0])
-            result[name] = {"longitude": lon_p, "sign": zodiac_sign(lon_p)}
+    _, ascmc = swe.houses(jd, lat, lon)
 
-        houses, ascmc = swe.houses(jd, lat, lon)
-        asc_sign = zodiac_sign(float(ascmc[0]))
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"SwissEphemeris error: {str(e)}")
-
-    # IMPORTANT: ascendant come OGGETTO con sign (per matchare il frontend)
     return {
-        "planets": result,
-        "ascendant": {"sign": asc_sign}
+        "planets": planets,
+        "ascendant": {
+            "longitude": ascmc[0],
+            "sign": zodiac_sign(ascmc[0])
+        }
     }
 
+# ------------------
+# READINGS
+# ------------------
+from pydantic import BaseModel
 
-# -------- READINGS API --------
 class ReadingRequest(BaseModel):
-    birth_profile: Dict[str, Any] = {}
+    birth_profile: Dict[str, Any]
     topic: str
 
+def sign(chart, key):
+    try:
+        return chart["planets"][key]["sign"]
+    except:
+        return "Unknown"
+
+def reading_block(title, paragraphs):
+    body = "\n\n".join(paragraphs)
+    return f"{title}\n\n{body}"
 
 @app.post("/readings")
 def generate_reading(data: ReadingRequest):
-    birth_profile = data.birth_profile or {}
-    chart = (birth_profile.get("chart") or {})
+    chart = data.birth_profile.get("chart", {})
+    topic = (data.topic or "general").lower()
 
-    planets = chart.get("planets") or {}
-
-    def get_sign(key: str, fallback: str = "Unknown") -> str:
-        v = planets.get(key)
-        if isinstance(v, dict):
-            return v.get("sign") or fallback
-        return fallback
-
-    sun = get_sign("sun")
-    moon = get_sign("moon")
-
-    asc_obj = chart.get("ascendant") or {}
-    asc = asc_obj.get("sign") or "Unknown"
-
-    topic = (data.topic or "").lower().strip() or "general"
-
-    def format_reading(title: str, core: str, strength: str, challenge: str, practical: str, reflection: str) -> str:
-        return f"""{title}
-
-CORE THEME
-{core}
-
-YOUR STRENGTH
-{strength}
-
-YOUR CHALLENGE
-{challenge}
-
-PRACTICAL FOCUS (Today / This Week)
-{practical}
-
-REFLECTION
-{reflection}
-""".strip()
+    sun = sign(chart, "sun")
+    moon = sign(chart, "moon")
+    mercury = sign(chart, "mercury")
+    venus = sign(chart, "venus")
+    mars = sign(chart, "mars")
+    saturn = sign(chart, "saturn")
+    asc = chart.get("ascendant", {}).get("sign", "Unknown")
 
     if topic == "love":
-        text = format_reading(
-            "LOVE & RELATIONSHIPS — Your Pattern",
-            f"With Sun in {sun}, you approach love with intention and standards. With Moon in {moon}, you need emotional truth and loyalty. With Ascendant in {asc}, you often attract intense connections that trigger growth rather than comfort.",
-            "You’re capable of deep commitment. You read between the lines, notice patterns fast, and when you choose someone you can be incredibly steady and protective.",
-            "You may test people silently instead of stating what you need. If your emotional safety feels uncertain, you can withdraw, become controlling, or expect the other person to ‘just understand’.",
-            "Say your need early and simply. Replace ‘proof’ with clarity: one direct message, one clear boundary, one honest request. Choose calm consistency over emotional spikes.",
-            "Ask yourself: ‘Am I reacting to the present person, or to an old pattern that feels familiar?’"
+        text = reading_block(
+            "LOVE & RELATIONSHIPS — Your Emotional Pattern",
+            [
+                f"You love with intention. Sun in {sun} makes you selective: you don’t give yourself easily, but when you do, it’s real. You need relationships that feel meaningful, not casual.",
+                f"Moon in {moon} reveals your emotional hunger. You need safety, loyalty, and emotional presence. When this is missing, you instinctively pull back or protect yourself.",
+                f"Venus in {venus} shows how you express love: this is your true love language. You desire depth, consistency, and emotional authenticity, not surface-level affection.",
+                f"Mars in {mars} describes attraction and desire. You’re drawn to intensity, chemistry, and emotional truth — passion fades quickly if the connection lacks substance.",
+                f"Saturn in {saturn} highlights your fear: abandonment, loss of control, or emotional exposure. Love becomes transformative once you stop testing and start expressing.",
+            ]
         )
+
     elif topic == "career":
-        text = format_reading(
-            "CAREER & DIRECTION — Your Path",
-            f"With Sun in {sun}, your career grows through mastery and long-term thinking. With Moon in {moon}, you need work that feels meaningful emotionally, not just profitable. With Ascendant in {asc}, you’re seen as intense, strategic, and capable under pressure.",
-            "You’re strong at building systems, improving processes, and turning chaos into structure. You can work alone and still deliver high-level results.",
-            "Your drive can become all-or-nothing: either total ambition or total burnout. You may overthink visibility, authority, or ‘being judged’ before you even move.",
-            "Pick ONE measurable outcome this week (a deliverable, a portfolio piece, a launch step). Progress beats perfection. Show your work before it feels ready.",
-            "Ask: ‘What would I create if I trusted my competence 10% more?’"
+        text = reading_block(
+            "CAREER & PURPOSE — How You Build Success",
+            [
+                f"Sun in {sun} gives you long-term ambition. You’re not built for shortcuts — you succeed by mastering your craft over time.",
+                f"Mercury in {mercury} defines how you think and work. Your mind focuses on strategy, analysis, and improvement rather than improvisation.",
+                f"Mars in {mars} fuels your drive. When motivated, you work with intensity and discipline; when blocked, frustration builds fast.",
+                f"Jupiter expands your potential through learning, vision, and calculated risks. Growth comes when you trust your competence.",
+                f"Saturn reveals where you feel judged or limited — and where real authority is built through consistency.",
+            ]
         )
-    elif topic == "money":
-        text = format_reading(
-            "MONEY & STABILITY — Your Flow",
-            f"With Sun in {sun}, you earn best through consistency and strategy. With Moon in {moon}, spending is tied to emotions (comfort, freedom, reward). With Ascendant in {asc}, you can be private about money, but highly driven to feel in control.",
-            "You’re good at planning, saving when you have a clear target, and spotting what’s ‘worth it’ long-term. You can be very disciplined when motivated.",
-            "Impulse spending can appear when emotions spike or when you feel you ‘deserve’ relief. Fear of scarcity can also block investments that would actually help you grow.",
-            "Use a simple rule: 1) weekly cap, 2) one ‘investment’ category (tools/skills), 3) one ‘joy’ category (small rewards). Balanced, not strict.",
-            "Ask: ‘Is this purchase solving a real need, or soothing a moment?’"
-        )
+
     elif topic == "personal":
-        text = format_reading(
-            "PERSONAL GROWTH — Your Inner Blueprint",
-            f"With Sun in {sun}, you evolve through responsibility and purpose. With Moon in {moon}, your emotions need space to be expressed, not managed. With Ascendant in {asc}, you protect your depth — you reveal yourself only when trust is real.",
-            "You have strong intuition and self-awareness. When you commit to growth, you transform fast. You’re resilient and bounce back stronger.",
-            "You may keep everything inside until it becomes too heavy. The risk is emotional isolation: appearing ‘fine’ while carrying too much alone.",
-            "Choose one daily ritual: journaling 5 minutes, a walk without phone, or a short emotional check-in. Tiny repetition is what rewires patterns.",
-            "Ask: ‘What feeling am I avoiding — and what would happen if I allowed it for 60 seconds?’"
+        text = reading_block(
+            "PERSONAL GROWTH — Your Inner Architecture",
+            [
+                f"Your Sun in {sun} defines who you are becoming. Growth for you means responsibility, structure, and purpose.",
+                f"Moon in {moon} shows how you process emotions. You feel deeply, even when you appear controlled or distant.",
+                f"Ascendant in {asc} shapes how you face life. You don’t rush — you observe, evaluate, and then act decisively.",
+                f"Saturn marks your inner critic. Growth accelerates when you stop carrying everything alone.",
+                f"Your power lies in integration: mind, emotion, and action aligned.",
+            ]
         )
+
+    elif topic == "money":
+        text = reading_block(
+            "MONEY & SECURITY — Your Relationship with Stability",
+            [
+                f"Sun in {sun} seeks control and long-term safety with money.",
+                f"Moon in {moon} links spending to emotions — comfort and reassurance matter.",
+                f"Venus in {venus} reveals what you value enough to invest in.",
+                f"Saturn shows financial fear patterns and discipline.",
+                f"Wealth grows when structure replaces impulse.",
+            ]
+        )
+
+    elif topic == "communication":
+        text = reading_block(
+            "COMMUNICATION — How You Express Yourself",
+            [
+                f"Mercury in {mercury} defines your communication style.",
+                f"Moon in {moon} colors your tone emotionally.",
+                f"Ascendant in {asc} shapes first impressions.",
+                f"You’re most powerful when clarity replaces silence.",
+                f"Say less, but say it directly.",
+            ]
+        )
+
     else:
-        text = format_reading(
-            "YOUR CORE BLUEPRINT — Snapshot",
-            f"Sun in {sun} shapes your identity and direction. Moon in {moon} shapes your emotional needs. Ascendant in {asc} shapes how you start things and how the world experiences you.",
-            "You have a mix of depth and drive. When you focus, you can build something real — not just ideas.",
-            "Your challenge is consistency when emotions fluctuate. You don’t need more intensity, you need a clear rhythm.",
-            "Pick one small action you can repeat daily. Keep it simple, keep it real, keep it consistent.",
-            "Ask: ‘What does my best self do even when motivation is low?’"
+        text = reading_block(
+            "CORE BLUEPRINT — Who You Are",
+            [
+                f"Sun in {sun}, Moon in {moon}, Ascendant in {asc} form your core identity.",
+                f"Your life theme is integration: depth with direction.",
+                f"You are not random — your patterns repeat until understood.",
+                f"Once aligned, you become unstoppable.",
+            ]
         )
 
-    return {"topic": topic, "text": text}
+    return {
+        "topic": topic,
+        "text": text
+    }
 
-
+# ------------------
+# RUN
+# ------------------
 if __name__ == "__main__":
-    import os
-    import uvicorn
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    import os, uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
