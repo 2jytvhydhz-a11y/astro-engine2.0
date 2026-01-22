@@ -194,6 +194,36 @@ REFLECTION
             "Ask: ‘What does my best self do even when motivation is low?’"
         )
 
+    elif topic == "strengths":
+    text = format_reading(
+        "STRENGTHS — What You Do Best",
+        f"Your Sun in {sun} gives you a core drive toward competence and purpose. Your Moon in {moon} shows how you recharge emotionally. Your Ascendant in {asc} shows how you take initiative and how others experience your presence.",
+        "You learn fast when you care. You’re able to go deep, notice patterns, and improve systems instead of repeating mistakes. When you commit, you become very consistent.",
+        "Your strength becomes a trap when you expect too much from yourself or from others. High standards are powerful, but they need flexibility.",
+        "This week: identify ONE strength you underuse (clarity, discipline, intuition, courage). Use it intentionally in a real situation.",
+        "Ask: ‘What would change if I trusted my strongest quality and used it on purpose?’"
+    )
+
+elif topic == "shadow":
+    text = format_reading(
+        "SHADOW PATTERNS — What Blocks You",
+        f"With Sun in {sun}, your shadow can be over-control or perfectionism. With Moon in {moon}, your shadow can be emotional reactivity or seeking validation. With Ascendant in {asc}, you may protect yourself by staying guarded or intense.",
+        "You’re self-aware enough to change quickly once you name the pattern. Your depth is an advantage: you can transform instead of repeating cycles.",
+        "When you feel unsafe or uncertain, you might test people, withdraw, or overthink. That creates distance exactly when you want connection.",
+        "Name the emotion in one sentence (no story). Then choose one action: speak clearly, set a boundary, or ask directly.",
+        "Ask: ‘What am I trying to protect — and what would a healthier protection look like?’"
+    )
+
+elif topic == "communication":
+    text = format_reading(
+        "COMMUNICATION — How To Be Understood",
+        f"Your Sun in {sun} speaks with purpose. Your Moon in {moon} speaks from emotion. Your Ascendant in {asc} affects first impressions — you can come across as intense, private, or very direct.",
+        "When you communicate clearly, you become magnetic: people trust you. You can be persuasive without forcing, especially when you’re calm.",
+        "Your challenge is assuming others can read your signals. If you don’t say what you need, people will guess — and guess wrong.",
+        "Use this formula: ‘I feel ___ about ___. I need ___. Can we ___.’ One sentence each. No drama, just clarity.",
+        "Ask: ‘What’s the simplest truthful version of what I’m trying to say?’"
+    )
+
     return {
         "topic": topic or "general",
         "text": text.strip()
