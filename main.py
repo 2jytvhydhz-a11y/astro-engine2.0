@@ -93,11 +93,13 @@ class ReadingRequest(BaseModel):
 
 @app.post("/readings")
 def generate_reading(data: ReadingRequest):
-    chart = data.birth_profile
+   birth_profile = data.birth_profile
+chart = birth_profile["chart"]
 
-    sun = chart["planets"]["sun"]["sign"]
-    moon = chart["planets"]["moon"]["sign"]
-    asc = chart["ascendant"]
+sun = chart["planets"]["sun"]["sign"]
+moon = chart["planets"]["moon"]["sign"]
+asc = chart["ascendant"]["sign"]
+
 
     if data.topic == "love":
         text = f"""
