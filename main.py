@@ -93,71 +93,108 @@ class ReadingRequest(BaseModel):
 
 @app.post("/readings")
 def generate_reading(data: ReadingRequest):
-    birth_profile = data.birth_profile
-    chart = birth_profile["chart"]
+    birth_profile = data.birth_profile or {}
+    chart = (birth_profile.get("chart") or {})
 
-    sun = chart["planets"]["sun"]["sign"]
-    moon = chart["planets"]["moon"]["sign"]
-    asc = chart["ascendant"]["sign"]
+    planets = chart.get("planets") or {}
+    # supporta sia: planets["sun"]["sign"] che array normalizzato se mai lo mandi
+    def get_sign(key: str, fallback: str = "Unknown"):
+        try:
+            v = planets.get(key)
+            if isinstance(v, dict):
+                return v.get("sign") or fallback
+            return fallback
+        except Exception:
+            return fallback
 
-    if data.topic == "love":
-        text = f"""
-LOVE & RELATIONSHIPS — Your Pattern
+    sun = get_sign("sun")
+    moon = get_sign("moon")
+    asc = (chart.get("ascendant") or {}).get("sign") or "Unknown"
+
+    topic = (data.topic or "").lower().strip()
+
+    # helper per rendere il testo “premium” e coerente
+    def format_reading(title: str, core: str, strengths: str, challenge: str, practical: str, reflection: str):
+        return f"""{title}
 
 CORE THEME
-With Sun in {sun}, you approach love with intention and standards.
-With Moon in {moon}, you need emotional truth and loyalty.
-With Ascendant in {asc}, you naturally attract intense connections.
-
-WHAT YOU NEED
-• Emotional consistency
-• Depth over surface
-• Honesty without games
+{core}
 
 YOUR STRENGTH
-You love deeply and transform through relationships.
+{strengths}
 
 YOUR CHALLENGE
-You may test others silently instead of expressing needs clearly.
+{challenge}
 
-PRACTICAL FOCUS
-Say what you need early. Choose calm over chaos.
-"""
+PRACTICAL FOCUS (Today / This Week)
+{practical}
 
-    elif data.topic == "career":
-        text = f"""
-CAREER — Your Path
+REFLECTION
+{reflection}
+""".strip()
 
-CORE THEME
-Sun in {sun} gives ambition and long-term vision.
-Moon in {moon} adds creativity and intuition.
-Ascendant in {asc} gives leadership presence.
+    if topic == "love":
+        text = format_reading(
+            "LOVE & RELATIONSHIPS — Your Pattern",
+            f"With Sun in {sun}, you approach love with intention and standards. With Moon in {moon}, you need emotional truth and loyalty. With Ascendant in {asc}, you often attract intense connections that trigger growth rather than comfort.",
+            "You’re capable of deep commitment. You read between the lines, you notice patterns fast, and when you choose someone you can be incredibly steady and protective.",
+            "You may test people silently instead of stating what you need. If your emotional safety feels uncertain, you can withdraw, become controlling, or expect the other person to ‘just understand’.",
+            "Say your need early and simply. Replace ‘proof’ with clarity: one direct message, one clear boundary, one honest request. Choose calm consistency over emotional spikes.",
+            "Ask yourself: ‘Am I reacting to the present person, or to an old pattern that feels familiar?’"
+        )
 
-YOUR ADVANTAGE
-You are built for consistency and mastery.
+    elif topic == "career":
+        text = format_reading(
+            "CAREER & DIRECTION — Your Path",
+            f"With Sun in {sun}, your career grows through mastery and long-term thinking. With Moon in {moon}, you need work that feels meaningful emotionally, not just profitable. With Ascendant in {asc}, you’re seen as intense, strategic, and capable under pressure.",
+            "You’re strong at building systems, improving processes, and turning chaos into structure. You can work alone and still deliver high-level results.",
+            "Your drive can become all-or-nothing: either total ambition or total burnout. You may overthink visibility, authority, or ‘being judged’ before you even move.",
+            "Pick ONE measurable outcome this week (a deliverable, a portfolio piece, a launch step). Progress beats perfection. Show your work before it feels ready.",
+            "Ask: ‘What would I create if I trusted my competence 10% more?’"
+        )
 
-YOUR RISK
-Taking on too much alone.
+    elif topic == "money":
+        text = format_reading(
+            "MONEY & STABILITY — Your Flow",
+            f"With Sun in {sun}, you earn best through consistency and strategy. With Moon in {moon}, spending is tied to emotions (comfort, freedom, reward). With Ascendant in {asc}, you can be private about money, but highly driven to feel in control.",
+            "You’re good at planning, saving when you have a clear target, and spotting what’s ‘worth it’ long-term. You can be very disciplined when motivated.",
+            "Impulse spending can appear when emotions spike or when you feel you ‘deserve’ relief. Also: fear of scarcity can make you hesitate on investments that would actually help you grow.",
+            "Define a simple rule: 1) a weekly spending cap, 2) one ‘investment’ category (tools/skills), 3) one ‘joy’ category (small rewards). Keep it balanced, not strict.",
+            "Ask: ‘Is this purchase solving a real need, or soothing a moment?’"
+        )
 
-PRACTICAL FOCUS
-Specialize. Track results. Ask for support sooner.
-"""
+    elif topic == "personal":
+        text = format_reading(
+            "PERSONAL GROWTH — Your Inner Blueprint",
+            f"With Sun in {sun}, you evolve through responsibility and purpose. With Moon in {moon}, your emotions need space to be expressed, not managed. With Ascendant in {asc}, you protect your depth — you reveal yourself only when trust is real.",
+            "You have strong intuition and self-awareness. When you commit to growth, you transform fast. You’re resilient and you bounce back stronger.",
+            "You may keep everything inside until it becomes too heavy. The risk is emotional isolation: appearing ‘fine’ while carrying too much alone.",
+            "Choose one daily ritual: journaling 5 minutes, a walk without phone, or a short emotional check-in. Tiny repetition is what rewires patterns.",
+            "Ask: ‘What feeling am I avoiding — and what would happen if I allowed it for 60 seconds?’"
+        )
+
+    elif topic == "timing":
+        text = format_reading(
+            "TIMING — Your Momentum",
+            f"With Sun in {sun}, you thrive when you plan and build steadily. With Moon in {moon}, your energy comes in waves — creativity needs cycles. With Ascendant in {asc}, you move best when you feel focused and emotionally clear.",
+            "Your best timing is when you combine structure + intuition: you plan the steps, then you act when your inner signal is ‘yes’.",
+            "Waiting for the perfect emotional state can delay opportunities. Over-analysis can turn into stagnation.",
+            "This week: choose one action that creates momentum in 30–60 minutes. Do it first. Let the mood arrive after the movement.",
+            "Ask: ‘What’s one step I can take today that makes tomorrow easier?’"
+        )
 
     else:
-        text = f"""
-CORE BLUEPRINT — Who You Are
-
-Sun in {sun} shows your life direction.
-Moon in {moon} shows emotional needs.
-Ascendant in {asc} shows how others perceive you.
-
-You evolve through real decisions and meaningful change.
-
-FOCUS
-Make one clear decision this week.
-"""
+        # fallback “general”
+        text = format_reading(
+            "YOUR CORE BLUEPRINT — Snapshot",
+            f"Sun in {sun} shapes your identity and direction. Moon in {moon} shapes your emotional needs. Ascendant in {asc} shapes how you start things and how the world experiences you.",
+            "You have a mix of depth and drive. When you focus, you can build something real — not just ideas.",
+            "Your challenge is consistency when emotions fluctuate. You don’t need more intensity, you need a clear rhythm.",
+            "Pick one small action you can repeat daily. Keep it simple, keep it real, keep it consistent.",
+            "Ask: ‘What does my best self do even when motivation is low?’"
+        )
 
     return {
-        "topic": data.topic,
+        "topic": topic or "general",
         "text": text.strip()
     }
