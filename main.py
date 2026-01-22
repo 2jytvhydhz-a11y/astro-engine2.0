@@ -96,9 +96,11 @@ def generate_reading(data: ReadingRequest):
     birth_profile = data.birth_profile
     chart = birth_profile["chart"]
 
-    sun = chart["planets"]["sun"]["sign"]
-    moon = chart["planets"]["moon"]["sign"]
-    asc = chart["ascendant"]["sign"]
+    planets = chart["planets"]
+
+sun = next(p["sign"] for p in planets if p["key"] == "sun")
+moon = next(p["sign"] for p in planets if p["key"] == "moon")
+asc = chart["ascendant"]["sign"]
 
     if data.topic == "love":
         text = (
