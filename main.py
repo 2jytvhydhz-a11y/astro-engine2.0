@@ -84,3 +84,42 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", "8000"))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
+from pydantic import BaseModel
+
+class ReadingRequest(BaseModel):
+    birth_profile: dict
+    topic: str  # es: "love", "career", "money", "personal"
+
+@app.post("/readings")
+def generate_reading(data: ReadingRequest):
+    chart = data.birth_profile
+
+    sun = chart["planets"]["sun"]["sign"]
+    moon = chart["planets"]["moon"]["sign"]
+    asc = chart["ascendant"]
+
+    if data.topic == "love":
+        text = f"""
+You love deeply and selectively.
+With Sun in {sun} and Moon in {moon}, you seek emotional loyalty
+but also intensity. Relationships transform you.
+Your Ascendant in {asc} makes others perceive you as magnetic.
+"""
+    elif data.topic == "career":
+        text = f"""
+Your vocation grows through discipline and intuition.
+Sun in {sun} gives ambition, Moon in {moon} creativity.
+Your Ascendant in {asc} pushes you to lead in your own way.
+"""
+    else:
+        text = f"""
+Your chart shows a complex and evolving inner world.
+Sun in {sun}, Moon in {moon}, Ascendant in {asc}.
+This is a foundation for growth.
+"""
+
+    return {
+        "topic": data.topic,
+        "text": text.strip()
+    }
