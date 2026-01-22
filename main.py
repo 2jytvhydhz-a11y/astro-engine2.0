@@ -1,55 +1,73 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from datetime import datetime
-import os
 import swisseph as swe
 
 app = FastAPI()
 
-# --- CONFIG ---
+# Path effemeridi (ok anche vuoto su Railway)
 swe.set_ephe_path(".")
 
 SIGNS = [
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    "Aries", "Taurus", "Gemini", "Cancer",
+    "Leo", "Virgo", "Libra", "Scorpio",
+    "Sagittarius", "Capricorn", "Aquarius", "Pisces"
 ]
 
 def zodiac_sign(longitude: float) -> str:
     longitude = longitude % 360
     return SIGNS[int(longitude // 30)]
 
-# --- HEALTH CHECK (fondamentale) ---
+
 @app.get("/")
 def root():
-    return {"ok": True, "service": "astro-engine", "try": "/docs"}
+    return {
+        "ok": True,
+        "try": "/docs",
+        "example": "/chart?date=1998-01-01&time=12:30&lat=41.9&lon=12.5"
+    }
+
 
 @app.get("/chart")
 def calculate_chart(date: str, time: str, lat: float, lon: float):
-    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-    jd = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0)
+    try:
+        # Parse datetime
+        dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
 
-    planets = {
-        "sun": swe.SUN,
-        "moon": swe.MOON,
-        "mercury": swe.MERCURY,
-        "venus": swe.VENUS,
-        "mars": swe.MARS,
-        "jupiter": swe.JUPITER,
-        "saturn": swe.SATURN,
-    }
+        # Julian day (UT)
+        jd = swe.julday(
+            dt.year,
+            dt.month,
+            dt.day,
+            dt.hour + dt.minute / 60.0
+        )
 
-    result = {}
-    for name, planet in planets.items():
-        lon_p, _, _ = swe.calc_ut(jd, planet)
-        result[name] = {"longitude": lon_p, "sign": zodiac_sign(lon_p)}
+        planets = {
+            "sun": swe.SUN,
+            "moon": swe.MOON,
+            "mercury": swe.MERCURY,
+            "venus": swe.VENUS,
+            "mars": swe.MARS,
+            "jupiter": swe.JUPITER,
+            "saturn": swe.SATURN
+        }
 
-    houses, ascmc = swe.houses(jd, lat, lon)
-    asc_sign = zodiac_sign(ascmc[0])
+        result = {}
 
-    return {"planets": result, "ascendant": asc_sign}
+        for name, planet in planets.items():
+            xx, _ = swe.calc_ut(jd, planet)
+            lon_p = float(xx[0])
+            result[name] = {
+                "longitude": lon_p,
+                "sign": zodiac_sign(lon_p)
+            }
 
+        houses, ascmc = swe.houses(jd, lat, lon)
+        asc_sign = zodiac_sign(ascmc[0])
 
-# --- AVVIO LOCALE/RAILWAY ---
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", "8080"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+        return {
+            "planets": result,
+            "ascendant": asc_sign
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
