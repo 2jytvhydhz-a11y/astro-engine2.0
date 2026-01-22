@@ -96,41 +96,32 @@ def generate_reading(data: ReadingRequest):
     birth_profile = data.birth_profile
     chart = birth_profile["chart"]
 
-    planets = chart["planets"]
-
-    sun = next(p["sign"] for p in planets if p["key"] == "sun")
-    moon = next(p["sign"] for p in planets if p["key"] == "moon")
+    sun = chart["planets"]["sun"]["sign"]
+    moon = chart["planets"]["moon"]["sign"]
     asc = chart["ascendant"]["sign"]
 
-       if data.topic == "love":
+    if data.topic == "love":
         text = f"""
 LOVE & RELATIONSHIPS — Your Pattern
 
 CORE THEME
-With Sun in {sun}, you approach love with intention and standards: you don’t waste energy on what feels shallow.
-With Moon in {moon}, you need emotional truth — not perfect words, but real presence.
-With Ascendant in {asc}, you can appear intense or magnetic even when you’re quiet. People feel you before they understand you.
+With Sun in {sun}, you approach love with intention and standards.
+With Moon in {moon}, you need emotional truth and loyalty.
+With Ascendant in {asc}, you naturally attract intense connections.
 
-WHAT YOU NEED (NOT WHAT YOU WANT)
-• Consistency: someone who shows up the same way in calm and chaos.
-• Emotional bravery: honesty without drama.
-• Depth: connection that grows, not a loop that repeats.
+WHAT YOU NEED
+• Emotional consistency
+• Depth over surface
+• Honesty without games
 
-YOUR STRENGTH IN LOVE
-You love like a builder: slowly, seriously, and with loyalty.
-When you commit, you invest fully — and that makes relationships transformative for you.
+YOUR STRENGTH
+You love deeply and transform through relationships.
 
-YOUR BLIND SPOT
-You can test people without meaning to: you watch, you wait, you measure.
-If they don’t “pass”, you detach fast — sometimes before giving them a clear chance to meet you.
+YOUR CHALLENGE
+You may test others silently instead of expressing needs clearly.
 
-HOW TO WIN IN RELATIONSHIPS (PRACTICAL)
-1) Say what you need early (in simple words). Not hints.
-2) Don’t confuse intensity with compatibility.
-3) Choose partners who are calm under pressure — that’s your real safety.
-
-TODAY’S PROMPT
-“What would make me feel emotionally safe this week — and have I said it clearly?”
+PRACTICAL FOCUS
+Say what you need early. Choose calm over chaos.
 """
 
     elif data.topic == "career":
@@ -138,56 +129,32 @@ TODAY’S PROMPT
 CAREER — Your Path
 
 CORE THEME
-Sun in {sun} gives you long-term ambition: you’re built for mastery, not quick wins.
-Moon in {moon} adds creative pride: you need to feel seen for what you uniquely bring.
-Ascendant in {asc} makes your style powerful — people read you as capable, strategic, and hard to influence.
+Sun in {sun} gives ambition and long-term vision.
+Moon in {moon} adds creativity and intuition.
+Ascendant in {asc} gives leadership presence.
 
-WHAT YOU NEED TO THRIVE
-• A role where you can grow in responsibility.
-• Clear metrics: progress must be measurable.
-• Autonomy: you work best when trusted, not micromanaged.
-
-YOUR NATURAL ADVANTAGE
-You can endure what others quit.
-When you decide a goal matters, you become consistent — and consistency is your superpower.
+YOUR ADVANTAGE
+You are built for consistency and mastery.
 
 YOUR RISK
-Over-control. You can carry everything alone and silently burn out.
-Your success increases when you delegate and ask earlier.
+Taking on too much alone.
 
-HOW TO LEVEL UP (PRACTICAL)
-1) Pick one skill to become “top 5%” at in 90 days.
-2) Build a visible proof trail (portfolio, numbers, results).
-3) Don’t wait for confidence — let repetition create it.
-
-TODAY’S PROMPT
-“What is the one task I avoid because it would actually move my life forward?”
+PRACTICAL FOCUS
+Specialize. Track results. Ask for support sooner.
 """
 
     else:
         text = f"""
 CORE BLUEPRINT — Who You Are
 
-CORE THEME
-Sun in {sun} shows your direction: how you build a life that feels solid and meaningful.
-Moon in {moon} shows your emotional needs: what refuels you and what drains you.
-Ascendant in {asc} shows how the world experiences you first: your “aura” and approach to new situations.
+Sun in {sun} shows your life direction.
+Moon in {moon} shows emotional needs.
+Ascendant in {asc} shows how others perceive you.
 
-YOUR INNER ENGINE
-You’re not here for surface-level living.
-You evolve through real experiences, real choices, and relationships that change you for the better.
+You evolve through real decisions and meaningful change.
 
-WHAT HELPS YOU MOST
-• A structure that protects your energy
-• A small circle of real people
-• Goals that aren’t random — goals that match who you are
-
-THIS WEEK’S FOCUS
-Choose one area (love, work, health, money) and make a single clear decision.
-Your life improves fast when your decisions become clean.
-
-TODAY’S PROMPT
-“What am I tolerating that I already know I should change?”
+FOCUS
+Make one clear decision this week.
 """
 
     return {
