@@ -1,9 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import swisseph as swe
 
 app = FastAPI()
-from fastapi.middleware.cors import CORSMiddleware
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    origin = request.headers.get("origin")
+    print(f"[REQ] {request.method} {request.url.path} origin={origin}")
+    response = await call_next(request)
+    print(f"[RES] {request.method} {request.url.path} -> {response.status_code}")
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Swiss Ephemeris: usa i file effemeridi locali (repo)
+# Swiss Ephemeris
 swe.set_ephe_path(".")
 
 SIGNS = [
