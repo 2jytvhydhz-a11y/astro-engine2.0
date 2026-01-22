@@ -1,18 +1,15 @@
-# main.py
-from __future__ import annotations
-
-import os
-from datetime import datetime
-from typing import Any, Dict, Optional, Union
-
-import swisseph as swe
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional, Literal
+from datetime import datetime
+import swisseph as swe
 
-app = FastAPI(title="Astro Engine", version="2.0")
+app = FastAPI(title="AstroFlow API", version="1.0.0")
 
-# --- Middleware (simple request logging) ---
+# -----------------------------
+# Middleware: request logging
+# -----------------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     origin = request.headers.get("origin")
@@ -21,351 +18,534 @@ async def log_requests(request: Request, call_next):
     print(f"[RES] {request.method} {request.url.path} -> {response.status_code}")
     return response
 
-# --- CORS ---
+# -----------------------------
+# CORS
+# -----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],         # OK for now; later you can restrict to Lovable domain(s)
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Swiss Ephemeris setup ---
-# If you bundle ephemeris files in the image (or download them), point here.
+# -----------------------------
+# Swiss Ephemeris setup
+# -----------------------------
 swe.set_ephe_path(".")
-# Use UT calculations
-SWE_FLAGS = swe.FLG_SWIEPH | swe.FLG_SPEED
 
-SIGNS = [
+SIGNS_EN = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
 ]
+SIGNS_IT = [
+    "Ariete", "Toro", "Gemelli", "Cancro", "Leone", "Vergine",
+    "Bilancia", "Scorpione", "Sagittario", "Capricorno", "Acquario", "Pesci"
+]
+SIGNS_ES = [
+    "Aries", "Tauro", "Géminis", "Cáncer", "Leo", "Virgo",
+    "Libra", "Escorpio", "Sagitario", "Capricornio", "Acuario", "Piscis"
+]
 
-def zodiac_sign(longitude: float) -> str:
-    longitude = longitude % 360.0
-    return SIGNS[int(longitude // 30)]
+def zodiac_sign_index(longitude: float) -> int:
+    lon = float(longitude) % 360.0
+    return int(lon // 30)
 
-def deg_in_sign(longitude: float) -> float:
-    longitude = longitude % 360.0
-    return round(longitude % 30.0, 2)
-
-def parse_datetime(date: str, time: str) -> datetime:
+def sign_name(sign_en: str, lang: str) -> str:
+    """Input sign is expected in EN. Output in requested lang."""
     try:
-        return datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail="Invalid date/time format. Use YYYY-MM-DD and HH:MM",
-        )
+        idx = SIGNS_EN.index(sign_en.capitalize())
+    except Exception:
+        # If already localized or unknown, return as-is
+        return sign_en
+    if lang == "it":
+        return SIGNS_IT[idx]
+    if lang == "es":
+        return SIGNS_ES[idx]
+    return SIGNS_EN[idx]
 
-def julian_day_utc(dt: datetime) -> float:
-    # We treat provided time as UTC for now (simple + consistent).
-    # If you later add timezone handling, convert to UTC before calling this.
-    return swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0)
+def pretty_planet_name(p: str, lang: str) -> str:
+    p = (p or "").lower().strip()
+    names = {
+        "en": {
+            "sun": "Sun", "moon": "Moon", "mercury": "Mercury", "venus": "Venus",
+            "mars": "Mars", "jupiter": "Jupiter", "saturn": "Saturn",
+            "uranus": "Uranus", "neptune": "Neptune", "pluto": "Pluto",
+            "ascendant": "Ascendant"
+        },
+        "it": {
+            "sun": "Sole", "moon": "Luna", "mercury": "Mercurio", "venus": "Venere",
+            "mars": "Marte", "jupiter": "Giove", "saturn": "Saturno",
+            "uranus": "Urano", "neptune": "Nettuno", "pluto": "Plutone",
+            "ascendant": "Ascendente"
+        },
+        "es": {
+            "sun": "Sol", "moon": "Luna", "mercury": "Mercurio", "venus": "Venus",
+            "mars": "Marte", "jupiter": "Júpiter", "saturn": "Saturno",
+            "uranus": "Urano", "neptune": "Neptuno", "pluto": "Plutón",
+            "ascendant": "Ascendente"
+        }
+    }
+    return names.get(lang, names["en"]).get(p, p.capitalize())
 
-PLANETS = {
-    "sun": swe.SUN,
-    "moon": swe.MOON,
-    "mercury": swe.MERCURY,
-    "venus": swe.VENUS,
-    "mars": swe.MARS,
-    "jupiter": swe.JUPITER,
-    "saturn": swe.SATURN,
-    "uranus": swe.URANUS,
-    "neptune": swe.NEPTUNE,
-    "pluto": swe.PLUTO,
-}
+def safe_get_sign(chart: Dict[str, Any], key: str) -> str:
+    """
+    Supports multiple shapes:
+    - chart['planets']['sun'] = {'sign': 'Capricorn'} OR {'sign': 'capricorn'}
+    - chart['planets']['sun'] = 'Capricorn'
+    - chart['ascendant'] = {'sign': 'Libra'} OR 'Libra'
+    """
+    if key == "ascendant":
+        asc = chart.get("ascendant")
+        if isinstance(asc, dict):
+            s = asc.get("sign") or ""
+            return str(s)
+        return str(asc or "")
 
-# --- API: health / root ---
-@app.get("/health")
-def health():
-    return {"ok": True}
+    planets = chart.get("planets") or {}
+    v = planets.get(key)
+    if isinstance(v, dict):
+        return str(v.get("sign") or "")
+    if isinstance(v, str):
+        return v
+    return ""
 
+def normalize_sign_en(s: str) -> str:
+    # Normalize to EN titlecase if it matches known EN signs
+    if not s:
+        return ""
+    s2 = s.strip().lower()
+    for en in SIGNS_EN:
+        if en.lower() == s2:
+            return en
+    # if it's not EN (maybe IT/ES) keep as-is
+    return s.strip()
+
+def clamp_lang(lang: Optional[str]) -> str:
+    lang = (lang or "en").lower().strip()
+    if lang not in ("en", "it", "es"):
+        return "en"
+    return lang
+
+# -----------------------------
+# API: Root
+# -----------------------------
 @app.get("/")
 def root():
     return {
         "ok": True,
         "try": "/docs",
-        "example": "/chart?date=1998-01-01&time=12:30&lat=41.9&lon=12.5",
+        "example_chart": "/chart?date=1998-01-01&time=12:30&lat=41.9&lon=12.5&tz_offset=1",
+        "example_reading": "POST /readings { birth_profile:{chart:{...}}, topic:'love', lang:'it' }"
     }
 
-# --- API: Chart ---
+# -----------------------------
+# API: Chart (Swiss Ephemeris)
+# -----------------------------
 @app.get("/chart")
-def calculate_chart(date: str, time: str, lat: float, lon: float):
-    # basic validation
+def calculate_chart(
+    date: str,
+    time: str,
+    lat: float,
+    lon: float,
+    tz_offset: float = 0.0
+):
+    """
+    date: YYYY-MM-DD
+    time: HH:MM (local time)
+    tz_offset: hours to convert local->UT (e.g. Italy winter = +1, summer = +2)
+              We compute UT = local_time - tz_offset
+    """
     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
         raise HTTPException(status_code=422, detail="lat/lon out of range")
 
-    dt = parse_datetime(date, time)
-    jd = julian_day_utc(dt)
+    try:
+        dt_local = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid date/time format. Use YYYY-MM-DD and HH:MM")
 
-    planets_out: Dict[str, Dict[str, Any]] = {}
+    # Convert local time -> UT
+    ut_hour = (dt_local.hour + dt_local.minute / 60.0) - float(tz_offset)
+    jd = swe.julday(dt_local.year, dt_local.month, dt_local.day, ut_hour)
+
+    planets = {
+        "sun": swe.SUN,
+        "moon": swe.MOON,
+        "mercury": swe.MERCURY,
+        "venus": swe.VENUS,
+        "mars": swe.MARS,
+        "jupiter": swe.JUPITER,
+        "saturn": swe.SATURN,
+        "uranus": swe.URANUS,
+        "neptune": swe.NEPTUNE,
+        "pluto": swe.PLUTO,
+    }
+
+    result = {}
 
     try:
-        for key, p in PLANETS.items():
-            xx, _ = swe.calc_ut(jd, p, SWE_FLAGS)
+        for name, planet in planets.items():
+            xx, _ = swe.calc_ut(jd, planet)  # xx[0]=lon
             lon_p = float(xx[0])
-            planets_out[key] = {
-                "longitude": round(lon_p, 6),
-                "sign": zodiac_sign(lon_p),
-                "degree": deg_in_sign(lon_p),
-            }
+            idx = zodiac_sign_index(lon_p)
+            result[name] = {"longitude": lon_p, "sign": SIGNS_EN[idx]}
 
-        # Houses + Ascendant
+        # Houses / Ascendant
         houses, ascmc = swe.houses(jd, lat, lon)
         asc_lon = float(ascmc[0])
-        asc = {
-            "longitude": round(asc_lon, 6),
-            "sign": zodiac_sign(asc_lon),
-            "degree": deg_in_sign(asc_lon),
-        }
-
-        # Optional: return houses cusps (1..12)
-        house_cusps = {str(i + 1): round(float(houses[i]), 6) for i in range(12)}
+        asc_idx = zodiac_sign_index(asc_lon)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SwissEphemeris error: {str(e)}")
 
     return {
-        "planets": planets_out,
-        "ascendant": asc,
-        "houses": house_cusps,
+        "planets": result,
+        "ascendant": {"longitude": asc_lon, "sign": SIGNS_EN[asc_idx]},
+        "meta": {
+            "tz_offset": tz_offset,
+            "note": "Ascendant depends strongly on timezone and exact birth time."
+        }
     }
 
-# --- Readings ---
+# -----------------------------
+# Readings (WOW, multi-planet)
+# -----------------------------
+Lang = Literal["en", "it", "es"]
+
 class ReadingRequest(BaseModel):
     birth_profile: Dict[str, Any] = Field(default_factory=dict)
-    topic: str = "general"
+    topic: str
+    lang: Optional[Lang] = "en"
 
-def safe_get_sign(planets: Any, key: str, fallback: str = "Unknown") -> str:
-    # supports:
-    # planets["sun"] = {"sign": "Capricorn", ...}
-    if isinstance(planets, dict):
-        v = planets.get(key)
-        if isinstance(v, dict):
-            return v.get("sign") or fallback
-    return fallback
+TOPICS = {
+    "love",
+    "career",
+    "money",
+    "personal",
+    "timing",
+    "strengths",
+    "shadow",
+    "communication",
+    "health",
+    "friendships",
+    "purpose"
+}
 
-def safe_get_degree(planets: Any, key: str) -> Optional[float]:
-    if isinstance(planets, dict):
-        v = planets.get(key)
-        if isinstance(v, dict):
-            d = v.get("degree")
-            try:
-                return float(d) if d is not None else None
-            except Exception:
-                return None
-    return None
+def t(lang: str, key: str) -> str:
+    # Small i18n dictionary for section labels.
+    D = {
+        "en": {
+            "title_love": "LOVE & RELATIONSHIPS — Your Emotional Pattern",
+            "title_career": "CAREER & DIRECTION — Your Path",
+            "title_money": "MONEY & STABILITY — Your Flow",
+            "title_personal": "PERSONAL GROWTH — Your Inner Blueprint",
+            "title_timing": "TIMING — Your Momentum",
+            "title_strengths": "STRENGTHS — What You Do Best",
+            "title_shadow": "SHADOW PATTERNS — What Blocks You",
+            "title_communication": "COMMUNICATION — How To Be Understood",
+            "title_health": "HEALTH & ENERGY — How You Recharge",
+            "title_friendships": "FRIENDSHIPS — Your Social Style",
+            "title_purpose": "PURPOSE — What You’re Here To Build",
+            "core": "THE CORE (how you’re wired)",
+            "mind": "YOUR MIND PATTERN (how you think)",
+            "heart": "YOUR HEART PATTERN (how you love)",
+            "drive": "YOUR DRIVE (how you act)",
+            "growth": "YOUR GROWTH EDGE (what expands you)",
+            "lesson": "YOUR DEEP LESSON (what matures you)",
+            "wow": "WOW PRACTICE (1 minute)",
+        },
+        "it": {
+            "title_love": "AMORE & RELAZIONI — Il tuo schema emotivo",
+            "title_career": "CARRIERA & DIREZIONE — La tua strada",
+            "title_money": "DENARO & STABILITÀ — Il tuo flusso",
+            "title_personal": "CRESCITA PERSONALE — Il tuo blueprint interiore",
+            "title_timing": "TEMPI — Il tuo ritmo",
+            "title_strengths": "PUNTI DI FORZA — Ciò che fai meglio",
+            "title_shadow": "OMBRE — Ciò che ti blocca",
+            "title_communication": "COMUNICAZIONE — Come farti capire davvero",
+            "title_health": "SALUTE & ENERGIA — Come ti ricarichi",
+            "title_friendships": "AMICIZIE — Il tuo stile sociale",
+            "title_purpose": "SCOPO — Cosa sei qui per costruire",
+            "core": "IL NUCLEO (come sei fatto dentro)",
+            "mind": "IL TUO MODO DI PENSARE (pattern mentale)",
+            "heart": "IL TUO MODO DI AMARE (pattern del cuore)",
+            "drive": "LA TUA SPINTA (come agisci)",
+            "growth": "LA TUA ESPANSIONE (cosa ti fa crescere)",
+            "lesson": "LA TUA LEZIONE PROFONDA (cosa ti rende maturo)",
+            "wow": "WOW PRACTICE (1 minuto)",
+        },
+        "es": {
+            "title_love": "AMOR & RELACIONES — Tu patrón emocional",
+            "title_career": "CARRERA & DIRECCIÓN — Tu camino",
+            "title_money": "DINERO & ESTABILIDAD — Tu flujo",
+            "title_personal": "CRECIMIENTO PERSONAL — Tu blueprint interior",
+            "title_timing": "TIEMPOS — Tu ritmo",
+            "title_strengths": "FORTALEZAS — Lo que haces mejor",
+            "title_shadow": "SOMBRA — Lo que te bloquea",
+            "title_communication": "COMUNICACIÓN — Cómo ser entendido de verdad",
+            "title_health": "SALUD & ENERGÍA — Cómo recargas",
+            "title_friendships": "AMISTADES — Tu estilo social",
+            "title_purpose": "PROPÓSITO — Lo que viniste a construir",
+            "core": "EL NÚCLEO (cómo estás hecho por dentro)",
+            "mind": "TU MENTE (patrón mental)",
+            "heart": "TU CORAZÓN (patrón afectivo)",
+            "drive": "TU IMPULSO (cómo actúas)",
+            "growth": "TU EXPANSIÓN (lo que te hace crecer)",
+            "lesson": "TU LECCIÓN PROFUNDA (lo que te madura)",
+            "wow": "WOW PRACTICE (1 minuto)",
+        }
+    }
+    return D.get(lang, D["en"]).get(key, key)
 
-def safe_get_asc(chart: Any) -> Dict[str, Any]:
-    # supports:
-    # chart["ascendant"] = {"sign": "...", "degree": ...}
-    # or chart["ascendant"] = "Libra"
-    if isinstance(chart, dict):
-        a = chart.get("ascendant")
-        if isinstance(a, dict):
-            return {
-                "sign": a.get("sign") or "Unknown",
-                "degree": a.get("degree"),
-            }
-        if isinstance(a, str):
-            return {"sign": a, "degree": None}
-    return {"sign": "Unknown", "degree": None}
-
-def format_reading(
-    title: str,
-    core: str,
-    strength: str,
-    challenge: str,
-    practical: str,
-    reflection: str,
+def build_wow_reading(
+    topic: str,
+    lang: str,
+    sun: str,
+    moon: str,
+    asc: str,
+    mercury: str,
+    venus: str,
+    mars: str,
+    jupiter: str,
+    saturn: str,
+    extras: Dict[str, str]
 ) -> str:
-    # keep the “authorized style” structure
-    return f"""{title}
+    # Localized signs
+    sunL = sign_name(sun, lang)
+    moonL = sign_name(moon, lang)
+    ascL = sign_name(asc, lang)
+    merL = sign_name(mercury, lang)
+    venL = sign_name(venus, lang)
+    marL = sign_name(mars, lang)
+    jupL = sign_name(jupiter, lang)
+    satL = sign_name(saturn, lang)
 
-CORE THEME
-{core}
+    # Optional outer planets
+    urL = sign_name(extras.get("uranus", ""), lang)
+    neL = sign_name(extras.get("neptune", ""), lang)
+    plL = sign_name(extras.get("pluto", ""), lang)
 
-YOUR STRENGTH
-{strength}
+    # Choose title key by topic
+    title_key = f"title_{topic}"
+    title = t(lang, title_key) if title_key in (t(lang, k) for k in []) else t(lang, title_key)
+    # (fallback if missing)
+    if "title_" + topic not in [
+        "title_love","title_career","title_money","title_personal","title_timing",
+        "title_strengths","title_shadow","title_communication","title_health","title_friendships","title_purpose"
+    ]:
+        title = t(lang, "title_personal")
 
-YOUR CHALLENGE
-{challenge}
+    # Core “wow” style: short bold headers + dense punchy paragraphs.
+    # We keep it deterministic: planet->meaning is generalized but feels personal.
+    if lang == "it":
+        base = f"""{title}
 
-PRACTICAL FOCUS (Today / This Week)
-{practical}
+{t(lang,'core')}  Sole in {sunL} è il tuo motore: non vivi di “idee”, vivi di risultati. Ti rispetti quando fai ciò che hai detto che avresti fatto.  
+Luna in {moonL} è il tuo cuore: hai bisogno di sentirti visto, valorizzato, scelto — non a parole, ma nei fatti.  
+Ascendente in {ascL} è la tua maschera sociale: dai un’immagine equilibrata e “a posto”, ma dentro lavori molto più a fondo di quanto la gente immagini.
 
-REFLECTION
-{reflection}
-""".strip()
+{t(lang,'mind')}  Mercurio in {merL} ti rende lucido e strategico: pensi in modo concreto, tagli il superfluo, vai dritto al punto.  
+Il rischio? Quando sei sotto pressione, la mente diventa “controllo”: cerchi la mossa perfetta e rimandi quella vera.
+
+{t(lang,'heart')}  Venere in {venL} dice come ami davvero: quando ti leghi, vuoi intensità, lealtà e verità emotiva.  
+Non ti interessa il “carino”: ti interessa ciò che regge. Se senti ambiguità, ti chiudi o testi — perché per te fiducia = sicurezza.
+
+{t(lang,'drive')}  Marte in {marL} è la tua modalità d’azione: ti muovi con precisione, migliorando passo dopo passo.  
+Se qualcosa non torna, lo aggiusti. Se qualcosa è vago, lo rendi chiaro. La tua forza è la disciplina intelligente, non la fretta.
+
+{t(lang,'growth')}  Giove in {jupL} è dove cresci: quando smetti di giocare piccolo e inizi a prenderti spazio.  
+La fortuna per te arriva quando ti esponi con stile: presenza, reputazione, decisioni pulite.
+
+{t(lang,'lesson')}  Saturno in {satL} è la lezione: impari a non portare tutto da solo.  
+La tua maturità è emotiva: dire ciò che provi prima che diventi durezza. Chiedere prima che diventi distanza."""
+        if urL or neL or plL:
+            base += "\n\n"
+            if urL:
+                base += f"Urano in {urL} aggiunge una parte ribelle: quando ti senti stretto, cambi tutto di colpo. Impara a cambiare senza distruggere.\n"
+            if neL:
+                base += f"Nettuno in {neL} amplifica l’intuizione: senti le persone. Il confine è non assorbire ciò che non è tuo.\n"
+            if plL:
+                base += f"Plutone in {plL} è il tuo potere: trasformi te stesso quando decidi. Non a metà. Per davvero.\n"
+
+        # Topic-specific “hook”
+        if topic == "love":
+            base += f"""
+
+{t(lang,'wow')}  Oggi: scegli UNA frase vera che non dici mai.  
+Tipo: “Io ho bisogno di chiarezza” / “Io voglio costanza” / “Io non mi accontento”.  
+Dilla (a voce o scritta) senza spiegarti troppo. È così che smetti di testare e inizi a creare legami reali."""
+        elif topic == "career":
+            base += f"""
+
+{t(lang,'wow')}  Oggi: fai una mossa da “Capricorno che guida”, non da “Capricorno che aspetta”.  
+Scrivi 1 obiettivo misurabile (piccolo ma reale) e fai 1 azione di 20 minuti che lo avvicina.  
+La tua magia non è motivazione: è traiettoria."""
+        elif topic == "money":
+            base += f"""
+
+{t(lang,'wow')}  Oggi: scegli un “no” che ti salva soldi e un “sì” che ti fa crescere.  
+No = taglio di una spesa automatica.  
+Sì = una micro-decisione che aumenta valore (skill, portfolio, strumento).  
+Il tuo denaro segue la tua identità: solida, non impulsiva."""
+        else:
+            base += f"""
+
+{t(lang,'wow')}  Oggi: nomina il sentimento in UNA frase (senza storia).  
+Poi fai UNA cosa che lo rispetta.  
+Il tuo “wow” nasce quando smetti di essere forte per abitudine e inizi a essere vero per scelta."""
+        return base.strip()
+
+    if lang == "es":
+        base = f"""{title}
+
+{t(lang,'core')}  Sol en {sunL} es tu motor: no vives de “ideas”, vives de resultados. Te respetas cuando haces lo que dijiste que harías.  
+Luna en {moonL} es tu corazón: necesitas sentirte visto, valorado, elegido — no con palabras, sino con hechos.  
+Ascendente en {ascL} es tu máscara social: pareces equilibrado y “en control”, pero por dentro vas mucho más profundo de lo que la gente imagina.
+
+{t(lang,'mind')}  Mercurio en {merL} te vuelve estratégico: piensas con precisión, cortas lo innecesario y vas al punto.  
+El riesgo: bajo presión, la mente se convierte en control. Buscas la jugada perfecta y pospones la real.
+
+{t(lang,'heart')}  Venus en {venL} muestra cómo amas: cuando te vinculas, quieres intensidad, lealtad y verdad emocional.  
+No te interesa lo “bonito”: te interesa lo que se sostiene. Si sientes ambigüedad, te cierras o pruebas — porque para ti confianza = seguridad.
+
+{t(lang,'drive')}  Marte en {marL} es tu forma de actuar: avanzas con método, mejorando paso a paso.  
+Si algo no encaja, lo ajustas. Si algo es vago, lo vuelves claro.
+
+{t(lang,'growth')}  Júpiter en {jupL} es donde creces: cuando dejas de jugar pequeño y ocupas tu lugar.  
+Tu suerte aparece cuando te expones con estilo: presencia, reputación, decisiones limpias.
+
+{t(lang,'lesson')}  Saturno en {satL} es la lección: aprender a no cargar con todo solo.  
+Tu madurez es emocional: decir lo que sientes antes de que se convierta en dureza."""
+        if urL or neL or plL:
+            base += "\n\n"
+            if urL:
+                base += f"Urano en {urL} añade rebeldía: cuando te sientes atrapado, cambias todo de golpe. Aprende a cambiar sin destruir.\n"
+            if neL:
+                base += f"Neptuno en {neL} amplifica la intuición: sientes a la gente. El límite es no absorber lo que no es tuyo.\n"
+            if plL:
+                base += f"Plutón en {plL} es tu poder: te transformas cuando decides. No a medias.\n"
+
+        base += f"""
+
+{t(lang,'wow')}  Hoy: nombra la emoción en UNA frase (sin historia).  
+Luego haz UNA acción que la respete.  
+Tu “wow” aparece cuando dejas de ser fuerte por costumbre y empiezas a ser verdadero por elección."""
+        return base.strip()
+
+    # EN default
+    base = f"""{title}
+
+{t(lang,'core')}  Sun in {sunL} is your identity engine: you don’t live on “ideas”, you live on outcomes. You respect yourself when you do what you said you’d do.  
+Moon in {moonL} is your emotional core: you need to feel seen, valued, chosen — not with words, but with real consistency.  
+Ascendant in {ascL} is your social armor: you look composed, balanced, “fine”… while inside you’re carrying much more depth than people assume.
+
+{t(lang,'mind')}  Mercury in {merL} makes you strategic: you think in clean lines, cut the noise, and move toward what works.  
+Under pressure, this can turn into control: you search for the perfect move and delay the true one.
+
+{t(lang,'heart')}  Venus in {venL} shows how you love: when you attach, you want intensity, loyalty, emotional truth — not casual affection.  
+You don’t want “nice”. You want real. When you sense ambiguity, you may pull back or test — because for you, trust equals safety.
+
+{t(lang,'drive')}  Mars in {marL} is your action style: precise, steady, improvement-focused.  
+If something is off, you fix it. If something is vague, you clarify it. Your power is intelligent discipline, not rushed intensity.
+
+{t(lang,'growth')}  Jupiter in {jupL} is your expansion: you grow when you stop playing small and let yourself be seen.  
+Your luck increases when you show up with style: presence, reputation, clean decisions.
+
+{t(lang,'lesson')}  Saturn in {satL} is your deep lesson: learning not to carry everything alone.  
+Your maturity is emotional — saying what you feel before it turns into hardness. Asking before it turns into distance."""
+    if urL or neL or plL:
+        base += "\n\n"
+        if urL:
+            base += f"Uranus in {urL} adds a rebellious streak: when you feel boxed in, you change everything fast. Learn to change without burning bridges.\n"
+        if neL:
+            base += f"Neptune in {neL} amplifies intuition: you read people deeply. The boundary is not absorbing what isn’t yours.\n"
+        if plL:
+            base += f"Pluto in {plL} is your power: you transform when you decide. Not halfway — for real.\n"
+
+    # Topic hook
+    if topic == "love":
+        base += f"""
+
+{t(lang,'wow')}  Today: choose ONE sentence you never say out loud.  
+“I need clarity.” / “I want consistency.” / “I don’t do half-love.”  
+Say it (voice or text) without over-explaining. That’s how you stop testing and start creating real bonds."""
+    elif topic == "career":
+        base += f"""
+
+{t(lang,'wow')}  Today: make one move like someone who leads — not someone who waits.  
+Write 1 measurable outcome, then do 20 minutes that moves it forward.  
+Your magic isn’t motivation. It’s trajectory."""
+    elif topic == "money":
+        base += f"""
+
+{t(lang,'wow')}  Today: pick one “NO” that saves money, and one “YES” that grows your value.  
+NO = cut one automatic expense.  
+YES = one micro-investment in skill, tool, or output.  
+Your money follows identity: solid, not impulsive."""
+    else:
+        base += f"""
+
+{t(lang,'wow')}  Today: name the feeling in ONE sentence (no story).  
+Then take ONE action that matches truth.  
+Your “wow” begins when you stop being strong by habit and start being real by choice."""
+    return base.strip()
 
 @app.post("/readings")
 def generate_reading(data: ReadingRequest):
+    lang = clamp_lang(data.lang)
+    topic = (data.topic or "").lower().strip()
+    if topic not in TOPICS:
+        # keep it safe
+        topic = "personal"
+
     birth_profile = data.birth_profile or {}
     chart = (birth_profile.get("chart") or {})
-    planets = (chart.get("planets") or {})
 
-    # Core trio
-    sun = safe_get_sign(planets, "sun")
-    moon = safe_get_sign(planets, "moon")
-    asc_obj = safe_get_asc(chart)
-    asc = asc_obj.get("sign") or "Unknown"
+    # Extract signs (EN ideally)
+    sun = normalize_sign_en(safe_get_sign(chart, "sun"))
+    moon = normalize_sign_en(safe_get_sign(chart, "moon"))
+    asc = normalize_sign_en(safe_get_sign(chart, "ascendant"))
 
-    # Key personalizers (planets that change the “who you are” feel)
-    mercury = safe_get_sign(planets, "mercury")
-    venus = safe_get_sign(planets, "venus")
-    mars = safe_get_sign(planets, "mars")
-    jupiter = safe_get_sign(planets, "jupiter")
-    saturn = safe_get_sign(planets, "saturn")
+    mercury = normalize_sign_en(safe_get_sign(chart, "mercury"))
+    venus = normalize_sign_en(safe_get_sign(chart, "venus"))
+    mars = normalize_sign_en(safe_get_sign(chart, "mars"))
+    jupiter = normalize_sign_en(safe_get_sign(chart, "jupiter"))
+    saturn = normalize_sign_en(safe_get_sign(chart, "saturn"))
 
-    topic = (data.topic or "").lower().strip() or "general"
+    # Extras if present
+    extras = {
+        "uranus": normalize_sign_en(safe_get_sign(chart, "uranus")),
+        "neptune": normalize_sign_en(safe_get_sign(chart, "neptune")),
+        "pluto": normalize_sign_en(safe_get_sign(chart, "pluto")),
+    }
 
-    # --- TOPICS (12 total) ---
-    if topic == "love":
-        text = format_reading(
-            "LOVE & RELATIONSHIPS — Your Pattern",
-            f"Sun in {sun} sets your standards in love. Moon in {moon} reveals what you emotionally *need* to feel safe. "
-            f"Ascendant {asc} shapes what you attract — and what people project onto you. "
-            f"Venus in {venus} shows how you bond, while Mars in {mars} shows how you pursue, react, and protect your heart.",
-            "You don’t do casual halfway. When you choose, you invest deeply. You notice micro-signals, patterns, shifts — and you remember them. "
-            "That makes you intensely loyal when trust is real.",
-            "Your intensity can turn into silent testing: waiting for proof instead of asking for clarity. If emotional safety wobbles, you may withdraw, control, or go cold — "
-            "even while you still care a lot.",
-            "This week: say one need plainly (one sentence). Don’t hint. Don’t test. Make it simple and direct. "
-            "Choose calm consistency over emotional spikes.",
-            "Ask: ‘Am I responding to the person in front of me — or to an old wound that feels familiar?’",
-        )
+    # Fallbacks if missing (avoid ugly "Sun in ")
+    def fb(x: str) -> str:
+        return x if x else "Unknown"
 
-    elif topic == "relationships":
-        text = format_reading(
-            "RELATIONSHIPS — How You Attach",
-            f"Sun {sun} sets the identity you bring into partnership. Moon {moon} sets your emotional rhythm. "
-            f"Ascendant {asc} shapes your first dynamic: how closeness starts. Venus {venus} and Saturn {saturn} show what you need to trust and commit.",
-            "You build bonds that can last. You prefer depth over noise. When you’re in, you show up — especially when it matters.",
-            "Your challenge is not letting fear drive the strategy. When you feel uncertainty, you can tighten the grip or disappear emotionally. "
-            "Both create distance exactly when you want closeness.",
-            "Make one ‘repair habit’: if there’s tension, name it within 24h in a calm message. No lecture. Just truth + a next step.",
-            "Ask: ‘What do I need to hear — and have I actually asked for it?’",
-        )
+    text = build_wow_reading(
+        topic=topic,
+        lang=lang,
+        sun=fb(sun),
+        moon=fb(moon),
+        asc=fb(asc),
+        mercury=fb(mercury),
+        venus=fb(venus),
+        mars=fb(mars),
+        jupiter=fb(jupiter),
+        saturn=fb(saturn),
+        extras=extras
+    )
 
-    elif topic == "career":
-        text = format_reading(
-            "CAREER & DIRECTION — Your Path",
-            f"Sun in {sun} grows through mastery and long-term building. Mercury in {mercury} shows how you think and plan. "
-            f"Mars in {mars} shows your work style under pressure. Jupiter in {jupiter} shows where growth accelerates.",
-            "You’re built for results, not hype. You can systematize chaos, improve processes, and deliver when others freeze. "
-            "You do well when the goal is real and the standard is high.",
-            "Your drive can become all-or-nothing: perfectionism, procrastination, burnout cycles. You may overthink visibility and judgment before you move.",
-            "Pick ONE measurable output this week (deliverable / portfolio / launch step). Publish before it feels perfect. "
-            "Momentum first, refinement second.",
-            "Ask: ‘If I trusted my competence 10% more, what would I ship this week?’",
-        )
+    return {
+        "topic": topic,
+        "lang": lang,
+        "text": text
+    }
 
-    elif topic == "money":
-        text = format_reading(
-            "MONEY & STABILITY — Your Flow",
-            f"Sun {sun} earns best through strategy and consistency. Moon {moon} ties money to emotional safety. "
-            f"Venus {venus} shows what you value and spend on. Saturn {saturn} shows your scarcity trigger (and your discipline).",
-            "You’re capable of building stable wealth when you have a clear target. You can be disciplined and long-term oriented.",
-            "Impulse spending can appear during emotional spikes (relief, reward, comfort). Or the opposite: fear of scarcity blocks investments that would help you grow.",
-            "Use a balanced rule for 7 days: (1) weekly cap, (2) one investment category (skills/tools), (3) one joy category (small reward). "
-            "No extremes — just rhythm.",
-            "Ask: ‘Is this purchase solving a real need — or soothing a moment?’",
-        )
-
-    elif topic == "personal":
-        text = format_reading(
-            "PERSONAL GROWTH — Your Inner Blueprint",
-            f"Sun {sun} shows your core direction. Moon {moon} shows what your inner world needs to feel held. "
-            f"Ascendant {asc} shows your protective style. Mercury {mercury} shows your mental patterns; Saturn {saturn} shows your growth edge.",
-            "You transform fast once you commit. You’re resilient. You don’t just ‘learn’ — you integrate and evolve.",
-            "You may carry everything alone until it becomes heavy. You can look ‘fine’ while you’re overloaded internally.",
-            "Choose one tiny daily ritual (5 minutes): write what you feel (not what you think), or a short walk without phone. "
-            "Small repetition rewires patterns.",
-            "Ask: ‘What emotion am I avoiding — and what happens if I allow it for 60 seconds?’",
-        )
-
-    elif topic == "shadow":
-        text = format_reading(
-            "SHADOW PATTERNS — What Blocks You",
-            f"Sun {sun} shadow: control/perfection. Moon {moon} shadow: pride/reactivity/validation. "
-            f"Ascendant {asc} shadow: guardedness or performance. Saturn {saturn} shows the fear that shapes your defenses.",
-            "You’re self-aware enough to change quickly once you name the pattern. Depth is your advantage: you can transform, not repeat.",
-            "When you feel unsafe, you may test people, withdraw, or overthink. That creates distance exactly when you want connection.",
-            "Name the emotion in one sentence (no story). Then one action: speak, set a boundary, or ask directly. Don’t spiral.",
-            "Ask: ‘What am I trying to protect — and what would healthier protection look like?’",
-        )
-
-    elif topic == "communication":
-        text = format_reading(
-            "COMMUNICATION — How To Be Understood",
-            f"Mercury {mercury} is your communication engine. Sun {sun} gives purpose. Moon {moon} gives emotion. "
-            f"Ascendant {asc} shapes first impression — how your words land.",
-            "When you speak clearly, people trust you. You can be persuasive without forcing — especially when you stay calm.",
-            "Your trap is assuming others will ‘get it’ from hints, tone, or silence. People guess — and guess wrong.",
-            "Use this formula once today: ‘I feel ___ about ___. I need ___. Can we ___?’ One sentence each. No drama, just clarity.",
-            "Ask: ‘What’s the simplest truthful version of what I’m trying to say?’",
-        )
-
-    elif topic == "purpose":
-        text = format_reading(
-            "PURPOSE — What You’re Here To Build",
-            f"Sun {sun} builds through mastery. Jupiter {jupiter} shows where expansion is natural. "
-            f"Saturn {saturn} shows where you must mature. Ascendant {asc} shows how you begin the path.",
-            "Your purpose isn’t ‘found’ — it’s built through commitment. You’re designed for depth, not distractions.",
-            "The trap is waiting for certainty. You can stay in preparation forever and call it ‘planning’.",
-            "Choose a 14-day commitment: one skill + one output. Track daily. Direction becomes obvious through movement.",
-            "Ask: ‘If I couldn’t fail, what would I start building immediately?’",
-        )
-
-    elif topic == "timing":
-        text = format_reading(
-            "TIMING — Your Momentum",
-            f"Sun {sun} thrives on structure. Moon {moon} moves in waves. Mars {mars} shows your action style. "
-            f"Ascendant {asc} shows how you initiate and recover.",
-            "Your best timing happens when you combine plan + intuition: structure the steps, then act when the inner signal is ‘yes’.",
-            "Waiting for the perfect mood delays opportunities. Over-analysis can become quiet stagnation.",
-            "This week: choose one 30–60 min action that creates momentum. Do it first. Let the mood arrive after movement.",
-            "Ask: ‘What’s one step I can take today that makes tomorrow easier?’",
-        )
-
-    elif topic == "health":
-        text = format_reading(
-            "HEALTH & ENERGY — How You Recharge",
-            f"Sun {sun} responds well to routine. Moon {moon} is your nervous system’s emotional weather. "
-            f"Mars {mars} shows how you spend energy and recover.",
-            "When you honor rhythm (sleep, food, movement), you become unstoppable. Small routines stabilize your confidence.",
-            "You may ignore early signals until the body forces a stop. Or over-correct (strict week → then nothing).",
-            "Pick a 7-day reset: consistent wake time + 20-min walk + hydration rule. Keep it simple and repeatable.",
-            "Ask: ‘What does my body need that I keep postponing?’",
-        )
-
-    elif topic == "friendships":
-        text = format_reading(
-            "FRIENDSHIPS — Your Social Style",
-            f"Sun {sun} values loyalty. Moon {moon} needs warmth. Ascendant {asc} shapes the vibe you give off. "
-            f"Venus {venus} shows how you bond socially.",
-            "You’re a high-quality friend: protective, honest, present when it matters. You prefer depth over superficial circles.",
-            "You may disappear when overwhelmed and assume people will understand. Or expect the same depth immediately.",
-            "Nurture one bond this week with one simple action (voice note / invite / check-in). Consistency beats intensity.",
-            "Ask: ‘Do I want closeness — and am I acting like I do?’",
-        )
-
-    else:
-        text = format_reading(
-            "YOUR CORE BLUEPRINT — Snapshot",
-            f"Sun {sun} shapes identity and direction. Moon {moon} shapes emotional needs. Ascendant {asc} shapes your starting energy. "
-            f"Mercury {mercury}, Venus {venus}, Mars {mars} refine your style — mind, love, action.",
-            "You have depth + drive. When you focus, you build something real — not just ideas.",
-            "Your challenge is rhythm: staying consistent when emotions fluctuate or when standards feel heavy.",
-            "Pick one small daily action you can repeat. Keep it simple, keep it real, keep it consistent.",
-            "Ask: ‘What does my best self do even when motivation is low?’",
-        )
-
-    return {"topic": topic, "text": text}
-
-
+# Railway / container entry
 if __name__ == "__main__":
+    import os
     import uvicorn
     port = int(os.environ.get("PORT", "8000"))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
