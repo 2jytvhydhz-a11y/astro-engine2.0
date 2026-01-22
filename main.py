@@ -102,24 +102,92 @@ def generate_reading(data: ReadingRequest):
     moon = next(p["sign"] for p in planets if p["key"] == "moon")
     asc = chart["ascendant"]["sign"]
 
-    if data.topic == "love":
+       if data.topic == "love":
         text = f"""
-You love deeply and selectively.
-With Sun in {sun} and Moon in {moon}, you seek emotional loyalty
-but also intensity. Relationships transform you.
-Your Ascendant in {asc} makes others perceive you as magnetic.
+LOVE & RELATIONSHIPS — Your Pattern
+
+CORE THEME
+With Sun in {sun}, you approach love with intention and standards: you don’t waste energy on what feels shallow.
+With Moon in {moon}, you need emotional truth — not perfect words, but real presence.
+With Ascendant in {asc}, you can appear intense or magnetic even when you’re quiet. People feel you before they understand you.
+
+WHAT YOU NEED (NOT WHAT YOU WANT)
+• Consistency: someone who shows up the same way in calm and chaos.
+• Emotional bravery: honesty without drama.
+• Depth: connection that grows, not a loop that repeats.
+
+YOUR STRENGTH IN LOVE
+You love like a builder: slowly, seriously, and with loyalty.
+When you commit, you invest fully — and that makes relationships transformative for you.
+
+YOUR BLIND SPOT
+You can test people without meaning to: you watch, you wait, you measure.
+If they don’t “pass”, you detach fast — sometimes before giving them a clear chance to meet you.
+
+HOW TO WIN IN RELATIONSHIPS (PRACTICAL)
+1) Say what you need early (in simple words). Not hints.
+2) Don’t confuse intensity with compatibility.
+3) Choose partners who are calm under pressure — that’s your real safety.
+
+TODAY’S PROMPT
+“What would make me feel emotionally safe this week — and have I said it clearly?”
 """
+
     elif data.topic == "career":
         text = f"""
-Your vocation grows through discipline and intuition.
-Sun in {sun} gives ambition, Moon in {moon} creativity.
-Your Ascendant in {asc} pushes you to lead in your own way.
+CAREER — Your Path
+
+CORE THEME
+Sun in {sun} gives you long-term ambition: you’re built for mastery, not quick wins.
+Moon in {moon} adds creative pride: you need to feel seen for what you uniquely bring.
+Ascendant in {asc} makes your style powerful — people read you as capable, strategic, and hard to influence.
+
+WHAT YOU NEED TO THRIVE
+• A role where you can grow in responsibility.
+• Clear metrics: progress must be measurable.
+• Autonomy: you work best when trusted, not micromanaged.
+
+YOUR NATURAL ADVANTAGE
+You can endure what others quit.
+When you decide a goal matters, you become consistent — and consistency is your superpower.
+
+YOUR RISK
+Over-control. You can carry everything alone and silently burn out.
+Your success increases when you delegate and ask earlier.
+
+HOW TO LEVEL UP (PRACTICAL)
+1) Pick one skill to become “top 5%” at in 90 days.
+2) Build a visible proof trail (portfolio, numbers, results).
+3) Don’t wait for confidence — let repetition create it.
+
+TODAY’S PROMPT
+“What is the one task I avoid because it would actually move my life forward?”
 """
+
     else:
         text = f"""
-Your chart shows a complex and evolving inner world.
-Sun in {sun}, Moon in {moon}, Ascendant in {asc}.
-This is a foundation for growth.
+CORE BLUEPRINT — Who You Are
+
+CORE THEME
+Sun in {sun} shows your direction: how you build a life that feels solid and meaningful.
+Moon in {moon} shows your emotional needs: what refuels you and what drains you.
+Ascendant in {asc} shows how the world experiences you first: your “aura” and approach to new situations.
+
+YOUR INNER ENGINE
+You’re not here for surface-level living.
+You evolve through real experiences, real choices, and relationships that change you for the better.
+
+WHAT HELPS YOU MOST
+• A structure that protects your energy
+• A small circle of real people
+• Goals that aren’t random — goals that match who you are
+
+THIS WEEK’S FOCUS
+Choose one area (love, work, health, money) and make a single clear decision.
+Your life improves fast when your decisions become clean.
+
+TODAY’S PROMPT
+“What am I tolerating that I already know I should change?”
 """
 
     return {
