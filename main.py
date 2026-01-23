@@ -91,23 +91,45 @@ def pretty_planet_name(p: str, lang: str) -> str:
 def safe_get_sign(chart: Dict[str, Any], key: str) -> str:
     """
     Supports multiple shapes:
-    - chart['planets']['sun'] = {'sign': 'Capricorn'} OR {'sign': 'capricorn'}
-    - chart['planets']['sun'] = 'Capricorn'
-    - chart['ascendant'] = {'sign': 'Libra'} OR 'Libra'
+    - chart["planets"] as dict:
+        { "sun": { "sign": "Capricorn" }, ... }
+    - chart["planets"] as list:
+        [ { "key": "sun", "sign": "capricorn" }, ... ]
+    - chart["ascendant"] as dict or string
     """
+
+    if not chart:
+        return ""
+
+    # Special case: ascendant
     if key == "ascendant":
         asc = chart.get("ascendant")
         if isinstance(asc, dict):
-            s = asc.get("sign") or ""
-            return str(s)
-        return str(asc or "")
+            return str(asc.get("sign") or "")
+        if isinstance(asc, str):
+            return asc
+        return ""
 
-    planets = chart.get("planets") or {}
-    v = planets.get(key)
-    if isinstance(v, dict):
-        return str(v.get("sign") or "")
-    if isinstance(v, str):
-        return v
+    planets = chart.get("planets")
+
+    # Case 1: planets is a dict
+    if isinstance(planets, dict):
+        v = planets.get(key)
+        if isinstance(v, dict):
+            return str(v.get("sign") or "")
+        if isinstance(v, str):
+            return v
+        return ""
+
+    # Case 2: planets is a list
+    if isinstance(planets, list):
+        for p in planets:
+            if not isinstance(p, dict):
+                continue
+            if p.get("key") == key:
+                return str(p.get("sign") or "")
+        return ""
+
     return ""
 
 def normalize_sign_en(s: str) -> str:
