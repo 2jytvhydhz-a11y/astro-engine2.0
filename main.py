@@ -569,7 +569,7 @@ T = {
 L = T.get(lang, T["en"])
 
     # Choose title key by topic
-        lang_pack = T.get(lang, T["en"])
+    lang_pack = T.get(lang, T["en"])
 
 title = lang_pack["titles"].get(topic, lang_pack["titles"]["personal"])
 
