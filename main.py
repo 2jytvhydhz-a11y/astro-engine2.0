@@ -4,6 +4,168 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional, Literal
 from datetime import datetime
 import swisseph as swe
+import hashlib
+import random
+from typing import Any, Dict, List
+
+PLANET_KEYS = ["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"]
+
+SIGN_TRAITS = {
+    "aries":      {"tone":"direct", "drive":"bold", "love":"chase", "work":"lead"},
+    "taurus":     {"tone":"steady", "drive":"patient", "love":"loyalty", "work":"build"},
+    "gemini":     {"tone":"curious", "drive":"quick", "love":"talk", "work":"variety"},
+    "cancer":     {"tone":"protective", "drive":"caring", "love":"bond", "work":"support"},
+    "leo":        {"tone":"warm", "drive":"proud", "love":"romance", "work":"shine"},
+    "virgo":      {"tone":"precise", "drive":"improve", "love":"acts", "work":"optimize"},
+    "libra":      {"tone":"harmonious", "drive":"balanced", "love":"partnership", "work":"mediate"},
+    "scorpio":    {"tone":"intense", "drive":"focused", "love":"depth", "work":"transform"},
+    "sagittarius":{"tone":"free", "drive":"explore", "love":"adventure", "work":"expand"},
+    "capricorn":  {"tone":"serious", "drive":"achieve", "love":"commit", "work":"structure"},
+    "aquarius":   {"tone":"original", "drive":"innovate", "love":"space", "work":"disrupt"},
+    "pisces":     {"tone":"sensitive", "drive":"flow", "love":"merge", "work":"create"},
+}
+
+def trait(sign: str, key: str, default: str = "") -> str:
+    return SIGN_TRAITS.get(sign, {}).get(key, default)
+
+def stable_rng(seed_str: str) -> random.Random:
+    h = hashlib.sha256(seed_str.encode("utf-8")).hexdigest()
+    return random.Random(int(h[:16], 16))
+
+def pick(rng: random.Random, items: List[str]) -> str:
+    return items[rng.randrange(0, len(items))]
+
+def normalize_planets(chart: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    """
+    Returns planets as dict: { 'sun': {'sign':'capricorn'}, ... }
+    Accepts either chart['planets'] as dict or list.
+    """
+    raw = chart.get("planets")
+    out: Dict[str, Dict[str, str]] = {}
+
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(v, dict):
+                sign = (v.get("sign") or "").lower().strip()
+            else:
+                sign = str(v).lower().strip()
+            if k:
+                out[str(k).lower().strip()] = {"sign": sign}
+        return out
+
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            key = (item.get("key") or item.get("name") or "").lower().strip()
+            sign = (item.get("sign") or "").lower().strip()
+            if key:
+                out[key] = {"sign": sign}
+        return out
+
+    return out
+
+def get_asc_sign(chart: Dict[str, Any]) -> str:
+    asc = chart.get("ascendant")
+    if isinstance(asc, dict):
+        return (asc.get("sign") or "").lower().strip()
+    if isinstance(asc, str):
+        return asc.lower().strip()
+    return ""
+    def describe_placement(planet: str, sign: str) -> str:
+    if not sign:
+        return ""
+    if planet == "sun":
+        return f"Sun in {sign.title()}: identity runs on {trait(sign,'drive','your rhythm')} and {trait(sign,'tone','clarity')}."
+    if planet == "moon":
+        return f"Moon in {sign.title()}: emotional needs center on {trait(sign,'love','connection')} and consistency."
+    if planet == "venus":
+        return f"Venus in {sign.title()}: love style moves toward {trait(sign,'love','connection')} and away from its opposite."
+    if planet == "mars":
+        return f"Mars in {sign.title()}: action style is {trait(sign,'drive','momentum')}—you pursue what matters directly."
+    if planet == "mercury":
+        return f"Mercury in {sign.title()}: communication prefers {trait(sign,'tone','clarity')} and that processing style."
+    if planet == "saturn":
+        return f"Saturn in {sign.title()}: growth edge is mastering {trait(sign,'work','structure')} with patience."
+    if planet == "jupiter":
+        return f"Jupiter in {sign.title()}: expansion happens when you lean into {trait(sign,'work','growth')} and take bigger swings."
+    return f"{planet.title()} in {sign.title()}."
+
+def generate_love(birth_profile: Dict[str, Any], lang: str="en") -> str:
+    chart = birth_profile.get("chart") or {}
+    planets = normalize_planets(chart)
+    asc = get_asc_sign(chart)
+    rng = stable_rng(f"{birth_profile.get('birthDate','')}-love")
+
+    sun = planets.get("sun", {}).get("sign","")
+    moon = planets.get("moon", {}).get("sign","")
+    venus = planets.get("venus", {}).get("sign","")
+    mars = planets.get("mars", {}).get("sign","")
+    mercury = planets.get("mercury", {}).get("sign","")
+
+    title = pick(rng, [
+        "LOVE & RELATIONSHIPS — Your Emotional Pattern",
+        "LOVE — How You Bond, Trust, and Choose",
+        "LOVE — What You Need, What You Give, What You Avoid",
+    ])
+
+    lines = [title, "", "YOUR LOVE BLUEPRINT"]
+    if sun: lines.append(describe_placement("sun", sun))
+    if moon: lines.append(describe_placement("moon", moon))
+    if venus: lines.append(describe_placement("venus", venus))
+    if mars: lines.append(describe_placement("mars", mars))
+    if mercury: lines.append(describe_placement("mercury", mercury))
+    if asc: lines.append(f"Ascendant in {asc.title()}: it shapes first impressions and how you protect your heart.")
+
+    lines += ["", "3 MICRO-ACTIONS"]
+    actions = [
+        "State one non-negotiable early (boundaries prevent chaos).",
+        "Ask for one concrete behavior (compatibility shows in actions).",
+        "When triggered, pause before replying (respond from values, not adrenaline).",
+    ]
+    rng.shuffle(actions)
+    lines.extend([f"- {a}" for a in actions])
+
+    return "\n".join(lines)
+
+def generate_career(birth_profile: Dict[str, Any], lang: str="en") -> str:
+    chart = birth_profile.get("chart") or {}
+    planets = normalize_planets(chart)
+    asc = get_asc_sign(chart)
+    rng = stable_rng(f"{birth_profile.get('birthDate','')}-career")
+
+    sun = planets.get("sun", {}).get("sign","")
+    mars = planets.get("mars", {}).get("sign","")
+    saturn = planets.get("saturn", {}).get("sign","")
+    jupiter = planets.get("jupiter", {}).get("sign","")
+    mercury = planets.get("mercury", {}).get("sign","")
+
+    title = pick(rng, [
+        "CAREER & DIRECTION — Your Path",
+        "CAREER — Where You Win and Why",
+        "CAREER — Your Work Signature",
+    ])
+
+    lines = [title, "", "YOUR WORK SIGNATURE"]
+    if sun: lines.append(describe_placement("sun", sun))
+    if mercury: lines.append(describe_placement("mercury", mercury))
+    if mars: lines.append(describe_placement("mars", mars))
+
+    lines += ["", "SCALE vs STABILITY"]
+    if jupiter: lines.append(describe_placement("jupiter", jupiter))
+    if saturn: lines.append(describe_placement("saturn", saturn))
+    if asc: lines.append(f"Ascendant in {asc.title()}: it colors how others perceive your competence.")
+
+    lines += ["", "3 CAREER MOVES"]
+    moves = [
+        "Pick roles that reward your natural pace (fast vs deep).",
+        "Turn one strength into a repeatable system (portfolio → proof → offer).",
+        "Track one KPI weekly (output, money, users) to avoid emotional drifting.",
+    ]
+    rng.shuffle(moves)
+    lines.extend([f"- {m}" for m in moves])
+
+    return "\n".join(lines)
 
 app = FastAPI(title="AstroFlow API", version="1.0.0")
 
@@ -545,19 +707,11 @@ def generate_reading(data: ReadingRequest):
     def fb(x: str) -> str:
         return x if x else "Unknown"
 
-    text = build_wow_reading(
-        topic=topic,
-        lang=lang,
-        sun=fb(sun),
-        moon=fb(moon),
-        asc=fb(asc),
-        mercury=fb(mercury),
-        venus=fb(venus),
-        mars=fb(mars),
-        jupiter=fb(jupiter),
-        saturn=fb(saturn),
-        extras=extras
-    )
+    text = generate_reading_text(
+    payload.topic,
+    payload.birth_profile,
+    payload.lang
+)
 
     print("DEBUG BACKEND → topic:", topic, flush=True)
     print("DEBUG BACKEND → text preview:", text[:120], flush=True)
