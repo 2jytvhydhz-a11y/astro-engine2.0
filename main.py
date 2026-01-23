@@ -537,6 +537,9 @@ def generate_reading(data: ReadingRequest):
         extras=extras
     )
 
+    print("DEBUG BACKEND → topic:", topic, flush=True)
+    print("DEBUG BACKEND → text preview:", text[:120], flush=True)
+
     return {
         "topic": topic,
         "lang": lang,
