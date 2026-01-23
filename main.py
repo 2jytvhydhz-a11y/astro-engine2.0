@@ -72,24 +72,33 @@ def get_asc_sign(chart: Dict[str, Any]) -> str:
     if isinstance(asc, str):
         return asc.lower().strip()
     return ""
+    
     def describe_placement(planet: str, sign: str) -> str:
-    if not sign:
-        return ""
-    if planet == "sun":
-        return f"Sun in {sign.title()}: identity runs on {trait(sign,'drive','your rhythm')} and {trait(sign,'tone','clarity')}."
-    if planet == "moon":
-        return f"Moon in {sign.title()}: emotional needs center on {trait(sign,'love','connection')} and consistency."
-    if planet == "venus":
-        return f"Venus in {sign.title()}: love style moves toward {trait(sign,'love','connection')} and away from its opposite."
-    if planet == "mars":
-        return f"Mars in {sign.title()}: action style is {trait(sign,'drive','momentum')}—you pursue what matters directly."
-    if planet == "mercury":
-        return f"Mercury in {sign.title()}: communication prefers {trait(sign,'tone','clarity')} and that processing style."
-    if planet == "saturn":
-        return f"Saturn in {sign.title()}: growth edge is mastering {trait(sign,'work','structure')} with patience."
-    if planet == "jupiter":
-        return f"Jupiter in {sign.title()}: expansion happens when you lean into {trait(sign,'work','growth')} and take bigger swings."
-    return f"{planet.title()} in {sign.title()}."
+        if not sign:
+            return ""
+            
+        if planet == "sun":
+            return f"Sun in {sign.title()}: identity runs on {trait(sign,'drive','your rhythm')} and {trait(sign,'tone','clarity')}."
+            
+        if planet == "moon":
+            return f"Moon in {sign.title()}: emotional needs center on {trait(sign,'love','connection')} and consistency."
+            
+        if planet == "venus":
+            return f"Venus in {sign.title()}: love style moves toward {trait(sign,'love','connection')} and away from its opposite."
+            
+        if planet == "mars":
+            return f"Mars in {sign.title()}: action style is {trait(sign,'drive','momentum')}—you pursue what matters directly."
+            
+        if planet == "mercury":
+            return f"Mercury in {sign.title()}: communication prefers {trait(sign,'tone','clarity')} and that processing style."
+            
+        if planet == "saturn":
+            return f"Saturn in {sign.title()}: growth edge is mastering {trait(sign,'work','structure')} with patience."
+            
+        if planet == "jupiter":
+            return f"Jupiter in {sign.title()}: expansion happens when you lean into {trait(sign,'work','growth')} and take bigger swings."
+            
+        return f"{planet.title()} in {sign.title()}."
 
 def generate_love(birth_profile: Dict[str, Any], lang: str="en") -> str:
     chart = birth_profile.get("chart") or {}
