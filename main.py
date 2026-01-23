@@ -518,7 +518,102 @@ def build_wow_reading(
     neL = sign_name(extras.get("neptune", ""), lang)
     plL = sign_name(extras.get("pluto", ""), lang)
 
+    # ----------------------------
+# STEP 1: language pack (titles + section headers)
+# ----------------------------
+T = {
+    "en": {
+        "titles": {
+            "love": "LOVE & RELATIONSHIPS — Your Emotional Pattern",
+            "career": "CAREER & DIRECTION — Your Path",
+            "money": "MONEY & RESOURCES — Your Material Flow",
+            "shadow": "EMOTIONAL PATTERNS — Your Inner Shadow",
+            "strengths": "STRENGTHS & WEAKNESSES — Your Power Balance",
+            "communication": "COMMUNICATION — How You Express Yourself",
+            "timing": "TIMING — When to Act and When to Wait",
+            "personal": "PERSONAL GROWTH — Your Inner Blueprint",
+        },
+        "labels": {
+            "core": "THE CORE (how you’re wired)",
+            "love": "LOVE (how you connect)",
+            "mind": "MIND (how you think/speak)",
+            "drive": "DRIVE (how you act)",
+            "growth": "GROWTH (how you expand)",
+            "lessons": "LESSONS (what matures you)",
+            "extras": "EXTRAS (outer planets)",
+        },
+    },
+    "it": {
+        "titles": {
+            "love": "AMORE & RELAZIONI — Il tuo pattern emotivo",
+            "career": "CARRIERA & DIREZIONE — La tua strada",
+            "money": "DENARO & RISORSE — Il tuo flusso materiale",
+            "shadow": "PATTERN EMOTIVI — La tua ombra interiore",
+            "strengths": "PUNTI DI FORZA & DEBOLEZZE — Il tuo equilibrio",
+            "communication": "COMUNICAZIONE — Come ti esprimi",
+            "timing": "TEMPI — Quando agire e quando aspettare",
+            "personal": "CRESCITA PERSONALE — La tua mappa interiore",
+        },
+        "labels": {
+            "core": "IL NUCLEO (come sei fatto dentro)",
+            "love": "AMORE (come ti leghi)",
+            "mind": "MENTE (come pensi/parli)",
+            "drive": "AZIONE (come ti muovi)",
+            "growth": "ESPANSIONE (come cresci)",
+            "lessons": "LEZIONI (cosa ti fa maturare)",
+            "extras": "EXTRA (pianeti lenti)",
+        },
+    },
+    # fallback: if lang not present, use English
+}
+L = T.get(lang, T["en"])
+
     # Choose title key by topic
+    lang_pack = T.get(lang, T["en"])
+
+title = lang_pack["titles"].get(topic, lang_pack["titles"]["personal"])
+
+sections = []
+
+sections.append(
+    f"{lang_pack['labels']['core']}\n"
+    f"{describe_placement('sun', sun)}\n"
+    f"{describe_placement('moon', moon)}\n"
+    f"Ascendant in {ascL}: this is how the world perceives you."
+)
+
+sections.append(
+    f"{lang_pack['labels']['love']}\n"
+    f"{describe_placement('venus', venus)}"
+)
+
+sections.append(
+    f"{lang_pack['labels']['mind']}\n"
+    f"{describe_placement('mercury', mercury)}"
+)
+
+sections.append(
+    f"{lang_pack['labels']['drive']}\n"
+    f"{describe_placement('mars', mars)}"
+)
+
+sections.append(
+    f"{lang_pack['labels']['growth']}\n"
+    f"{describe_placement('jupiter', jupiter)}"
+)
+
+sections.append(
+    f"{lang_pack['labels']['lessons']}\n"
+    f"{describe_placement('saturn', saturn)}"
+)
+
+if urL or neL or plL:
+    sections.append(
+        f"{lang_pack['labels']['extras']}\n"
+        f"Uranus in {urL}\nNeptune in {neL}\nPluto in {plL}"
+    )
+
+body = "\n\n".join(sections)
     title_key = f"title_{topic}"
     title = t(lang, title_key) if title_key in (t(lang, k) for k in []) else t(lang, title_key)
     # (fallback if missing)
@@ -532,6 +627,70 @@ def build_wow_reading(
     # We keep it deterministic: planet->meaning is generalized but feels personal.
     if lang == "it":
         base = f"""{title}
+    # --- Topic-specific sections ---
+if topic == "love":
+    base += f"""
+
+{t(lang,'section_love')}
+L’amore per te non è teoria ma esperienza concreta.
+Con Venere in {venL} e la Luna in {moonL}, il tuo modo di legarti è intenso e selettivo.
+Cerchi presenza, non promesse. Coerenza, non parole.
+Quando questo equilibrio manca, tendi a chiuderti o a pretendere troppo.
+"""
+
+elif topic == "career":
+    base += f"""
+
+{t(lang,'section_career')}
+La tua direzione professionale nasce dall’ambizione del Sole in {sunL} e dall’azione di Marte in {marL}.
+Lavori meglio quando hai autonomia e responsabilità reali.
+Non sei fatto per restare fermo: cresci quando affronti sfide vere e visibili.
+"""
+
+elif topic == "money":
+    base += f"""
+
+{t(lang,'section_money')}
+Il rapporto con il denaro riflette il tuo senso di sicurezza.
+Giove in {jupL} indica dove puoi espanderti, ma Saturno in {satL} ti chiede disciplina.
+Quando segui una strategia chiara, costruisci stabilità duratura.
+"""
+
+elif topic == "shadow":
+    base += f"""
+
+{t(lang,'section_shadow')}
+Le tue ombre emergono sotto pressione.
+Plutone e Saturno mostrano dove temi di perdere controllo.
+Riconoscere questi schemi è il primo passo per trasformarli in forza.
+"""
+
+elif topic == "strengths":
+    base += f"""
+
+{t(lang,'section_strengths')}
+I tuoi punti di forza nascono dall’integrazione tra mente, cuore e azione.
+Mercurio in {merL} ti dà lucidità, Marte in {marL} decisione.
+Quando li usi insieme, diventi estremamente efficace.
+"""
+
+elif topic == "communication":
+    base += f"""
+
+{t(lang,'section_communication')}
+Comunichi in modo diretto ma selettivo.
+Mercurio in {merL} indica come esprimi pensieri e bisogni.
+Quando ti senti ascoltato, diventi chiaro e incisivo; altrimenti ti chiudi.
+"""
+
+elif topic == "timing":
+    base += f"""
+
+{t(lang,'section_timing')}
+Il tempismo è una tua arma segreta.
+Giove e Saturno mostrano quando espanderti e quando aspettare.
+Sapere riconoscere questi momenti ti permette di fare mosse decisive.
+"""
 
 {t(lang,'core')}  Sole in {sunL} è il tuo motore: non vivi di “idee”, vivi di risultati. Ti rispetti quando fai ciò che hai detto che avresti fatto.  
 Luna in {moonL} è il tuo cuore: hai bisogno di sentirti visto, valorizzato, scelto — non a parole, ma nei fatti.  
