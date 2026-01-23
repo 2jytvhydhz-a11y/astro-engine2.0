@@ -7,6 +7,14 @@ import swisseph as swe
 
 app = FastAPI(title="AstroFlow API", version="1.0.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # -----------------------------
 # Middleware: request logging
 # -----------------------------
@@ -21,14 +29,6 @@ async def log_requests(request: Request, call_next):
 # -----------------------------
 # CORS
 # -----------------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # -----------------------------
 # Swiss Ephemeris setup
 # -----------------------------
