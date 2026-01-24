@@ -338,7 +338,7 @@ def resolve_tz_name(b: BirthInput) -> str:
     # 1) Se il frontend / supabase passa → usala
     if b.tz:
         return b.tz
-    raise HTTPEException(
+    raise HTTPException(
         status_code=422,
         detail="Missing timezone. Pass birth.tz (e.g Europe/Rome)"
     )
