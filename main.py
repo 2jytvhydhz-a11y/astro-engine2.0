@@ -336,7 +336,7 @@ def parse_local_datetime(b: BirthInput) -> datetime:
 
 def resolve_tz_name(b: BirthInput) -> str:
     # 1) Se il frontend / supabase passa → usala
-    if b.tz
+    if b.tz:
         return b.tz
     # 2) NIENTE TimezoneFinder
     # Se non arriva tz, falliamo esplicitamente
