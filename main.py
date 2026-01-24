@@ -335,28 +335,16 @@ def parse_local_datetime(b: BirthInput) -> datetime:
         raise HTTPException(status_code=422, detail="Invalid birth date/time. Use YYYY-MM-DD and HH:MM")
 
 def resolve_tz_name(b: BirthInput) -> str:
-    if getattr(b, "tz", None):
+    # 1) Se il frontend / supabase passa → usala
+    if b.tz
         return b.tz
-    # Priority:
-
-    # 2) lat/lon -> timezonefinder
-    if b.lat is not None and b.lon is not None:
-        if TimezoneFinder is None:
-            # timezonefinder non disponibile → fallback
-            pass
-        tf = TimezoneFinder()
-        tzname = tf.timezone_at(lat=b.lat, lng=b.lon)
-        if tzname:
-            return tzname
-
-    # 3) city/country: require frontend or upstream to provide tz/lat/lon for now
-    # This keeps backend solid and avoids unreliable geocoding without a vetted data source.
-    # Recommended: frontend sends lat/lon + tz after selecting city from autocomplete.
-    raise HTTPException(
+    # 2) NIENTE TimezoneFinder
+    # Se non arriva tz, falliamo esplicitamente
+    raise HTTPEException(
         status_code=422,
-        detail="Timezone not resolvable. Provide either tz (IANA), or lat/lon. For city-based birth, frontend should send lat/lon+tz from autocomplete."
+        detail="Missing timezone. Pass birth.tz (e.g Europe/Rome)"
     )
-
+    
 def local_to_utc(b: BirthInput) -> datetime:
     local_dt = parse_local_datetime(b)
     tzname = resolve_tz_name(b)
