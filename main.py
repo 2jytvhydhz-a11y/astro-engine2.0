@@ -328,6 +328,9 @@ class BirthInput(BaseModel):
     lat: Optional[float] = None
     lon: Optional[float] = None
 
+from fastapi import HTTPEException
+from fastapi import FastAPI, Request
+
 def parse_local_datetime(b: BirthInput) -> datetime:
     try:
         return datetime.strptime(f"{b.date} {b.time}", "%Y-%m-%d %H:%M")
