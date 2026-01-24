@@ -335,15 +335,15 @@ def parse_local_datetime(b: BirthInput) -> datetime:
         raise HTTPException(status_code=422, detail="Invalid birth date/time. Use YYYY-MM-DD and HH:MM")
 
 def resolve_tz_name(b: BirthInput) -> str:
-    # Priority:
-    # 1) explicit tz
-    if b.tz:
+    if getattr(b, "tz", None):
         return b.tz
+    # Priority:
 
     # 2) lat/lon -> timezonefinder
     if b.lat is not None and b.lon is not None:
         if TimezoneFinder is None:
-            raise HTTPException(status_code=500, detail="TimezoneFinder not installed on server.")
+            # timezonefinder non disponibile → fallback
+            pass
         tf = TimezoneFinder()
         tzname = tf.timezone_at(lat=b.lat, lng=b.lon)
         if tzname:
