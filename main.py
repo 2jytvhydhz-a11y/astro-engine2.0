@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional, Literal, List, Tuple
@@ -327,9 +328,6 @@ class BirthInput(BaseModel):
     tz: Optional[str] = None  # IANA tz name (optional override)
     lat: Optional[float] = None
     lon: Optional[float] = None
-
-from fastapi import HTTPEException
-from fastapi import FastAPI, Request
 
 def parse_local_datetime(b: BirthInput) -> datetime:
     try:
